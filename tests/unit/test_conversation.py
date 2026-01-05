@@ -1,10 +1,10 @@
-"""Tests for query functionality."""
+"""Tests for conversation functionality."""
 
 import pytest
 from unittest.mock import AsyncMock, patch
 import json
 
-from notebooklm.services.query import QueryResult, ConversationTurn
+from notebooklm.services.conversation import AskResult, ConversationTurn
 from notebooklm.api_client import NotebookLMClient
 from notebooklm.auth import AuthTokens
 
@@ -18,11 +18,11 @@ def auth_tokens():
     )
 
 
-class TestQuery:
+class TestAsk:
     @pytest.mark.asyncio
-    async def test_query_new_conversation(self, auth_tokens, httpx_mock):
+    async def test_ask_new_conversation(self, auth_tokens, httpx_mock):
         import re
-        # Mock query response (streaming chunks)
+        # Mock ask response (streaming chunks)
         # Format:
         # )]}'
         # <length>
@@ -50,9 +50,9 @@ class TestQuery:
         )
 
         async with NotebookLMClient(auth_tokens) as client:
-            result = await client.query(
+            result = await client.ask(
                 notebook_id="nb_123",
-                query_text="What is this?",
+                question="What is this?",
                 source_ids=["test_source"],
             )
 
@@ -63,7 +63,7 @@ class TestQuery:
         assert result["turn_number"] == 1
 
     @pytest.mark.asyncio
-    async def test_query_follow_up(self, auth_tokens, httpx_mock):
+    async def test_ask_follow_up(self, auth_tokens, httpx_mock):
         inner_json = json.dumps(
             [
                 [
@@ -86,9 +86,9 @@ class TestQuery:
                 {"query": "Q1", "answer": "A1", "turn_number": 1}
             ]
 
-            result = await client.query(
+            result = await client.ask(
                 notebook_id="nb_123",
-                query_text="Follow up?",
+                question="Follow up?",
                 conversation_id="conv_123",
                 source_ids=["test_source"],
             )

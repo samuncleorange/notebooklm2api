@@ -1896,14 +1896,14 @@ class NotebookLMClient:
                 mind_maps.append(item)
         return mind_maps
 
-    async def query(
+    async def ask(
         self,
         notebook_id: str,
-        query_text: str,
+        question: str,
         source_ids: Optional[list[str]] = None,
         conversation_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Query the notebook (ask a question)."""
+        """Ask the notebook a question."""
         import uuid
         import json
         import os
@@ -1927,7 +1927,7 @@ class NotebookLMClient:
 
         params = [
             sources_array,
-            query_text,
+            question,
             conversation_history,
             [2, None, [1]],
             conversation_id,
@@ -1971,11 +1971,11 @@ class NotebookLMClient:
         response = await self._http_client.post(url, content=body)
         response.raise_for_status()
 
-        answer_text = self._parse_query_response(response.text)
+        answer_text = self._parse_ask_response(response.text)
 
         # Cache turn
         if answer_text:
-            self._cache_conversation_turn(conversation_id, query_text, answer_text)
+            self._cache_conversation_turn(conversation_id, question, answer_text)
 
         turns = self._conversation_cache.get(conversation_id, [])
         turn_number = len(turns)
@@ -2011,7 +2011,7 @@ class NotebookLMClient:
             }
         )
 
-    def _parse_query_response(self, response_text: str) -> str:
+    def _parse_ask_response(self, response_text: str) -> str:
         if response_text.startswith(")]}'"):
             response_text = response_text[4:]
 

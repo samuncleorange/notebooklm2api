@@ -212,17 +212,17 @@ class TestNotebookGroup:
         assert "delete" in result.output
         assert "rename" in result.output
 
-    def test_notebook_query_command_exists(self, runner):
-        result = runner.invoke(cli, ["notebook", "query", "--help"])
+    def test_notebook_ask_command_exists(self, runner):
+        result = runner.invoke(cli, ["notebook", "ask", "--help"])
         assert result.exit_code == 0
-        assert "QUERY_TEXT" in result.output
+        assert "QUESTION" in result.output
 
 
-class TestQueryShortcut:
-    def test_query_command_exists(self, runner):
-        result = runner.invoke(cli, ["query", "--help"])
+class TestAskShortcut:
+    def test_ask_command_exists(self, runner):
+        result = runner.invoke(cli, ["ask", "--help"])
         assert result.exit_code == 0
-        assert "QUERY_TEXT" in result.output
+        assert "QUESTION" in result.output
         assert "--notebook" in result.output or "-n" in result.output
 
 

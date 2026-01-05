@@ -6,7 +6,7 @@ Command structure:
   notebooklm status                   # Show current context
   notebooklm list                     # List notebooks (shortcut)
   notebooklm create <title>           # Create notebook (shortcut)
-  notebooklm query <text>             # Chat with current notebook
+  notebooklm ask <question>           # Ask the current notebook a question
 
   notebooklm notebook <command>       # Notebook operations
   notebooklm source <command>         # Source operations
@@ -20,7 +20,7 @@ LLM-friendly design:
   notebooklm use nb123
   notebooklm generate video "a funny explainer for kids"
   notebooklm generate audio "deep dive focusing on chapter 3"
-  notebooklm query "what are the key themes?"
+  notebooklm ask "what are the key themes?"
 """
 
 import asyncio
@@ -248,7 +248,7 @@ def cli(ctx, storage):
       notebooklm login              # Authenticate first
       notebooklm list               # List your notebooks
       notebooklm create "My Notes"  # Create a notebook
-      notebooklm query <id> "Hi"    # Chat with a notebook
+      notebooklm ask "Hi"           # Ask the current notebook a question
 
     \b
     Command groups:
@@ -341,7 +341,7 @@ def use_notebook(ctx, notebook_id):
     \b
     Example:
       notebooklm use nb123
-      notebooklm query "what is this about?"   # Uses nb123
+      notebooklm ask "what is this about?"   # Uses nb123
       notebooklm generate video "a fun explainer"  # Uses nb123
     """
     try:
@@ -488,36 +488,91 @@ def create_notebook_shortcut(ctx, title):
         handle_error(e)
 
 
-@cli.command("query")
-@click.argument("query_text")
+@cli.command("ask")
+@click.argument("question")
 @click.option("-n", "--notebook", "notebook_id", default=None, help="Notebook ID (uses current if not set)")
 @click.option("--conversation-id", "-c", default=None, help="Continue a conversation")
 @click.pass_context
-def query_shortcut(ctx, query_text, notebook_id, conversation_id):
-    """Chat with a notebook (shortcut for 'notebook query').
+def ask_shortcut(ctx, question, notebook_id, conversation_id):
+    """Ask a notebook a question (shortcut for 'notebook ask').
 
     \b
     Example:
       notebooklm use nb123
-      notebooklm query "what are the main themes?"
-      notebooklm query "tell me more" -c <conversation_id>
+      notebooklm ask "what are the main themes?"
+      notebooklm ask "tell me more" -c <conversation_id>
     """
     try:
         nb_id = require_notebook(notebook_id)
         cookies, csrf, session_id = get_client(ctx)
         auth = AuthTokens(cookies=cookies, csrf_token=csrf, session_id=session_id)
 
-        async def _query():
+        async def _ask():
             async with NotebookLMClient(auth) as client:
-                return await client.query(
-                    nb_id, query_text, conversation_id=conversation_id
+                return await client.ask(
+                    nb_id, question, conversation_id=conversation_id
                 )
 
-        result = run_async(_query())
+        result = run_async(_ask())
 
         console.print(f"[bold cyan]Answer:[/bold cyan]")
         console.print(result["answer"])
         console.print(f"\n[dim]Conversation ID: {result['conversation_id']}[/dim]")
+
+    except Exception as e:
+        handle_error(e)
+
+
+@cli.command("history")
+@click.option("-n", "--notebook", "notebook_id", default=None, help="Notebook ID (uses current if not set)")
+@click.option("--limit", "-l", default=20, help="Number of messages")
+@click.option("--clear", is_flag=True, help="Clear local conversation cache")
+@click.pass_context
+def history_shortcut(ctx, notebook_id, limit, clear):
+    """View conversation history or clear local cache (shortcut for 'notebook history').
+
+    \b
+    Example:
+      notebooklm history                  # Show history for current notebook
+      notebooklm history --limit 5        # Show last 5 messages
+      notebooklm history --clear          # Clear local cache
+    """
+    try:
+        from .services import ConversationService
+
+        if clear:
+            # Clear local cache (no notebook required)
+            cookies, csrf, session_id = get_client(ctx)
+            auth = AuthTokens(cookies=cookies, csrf_token=csrf, session_id=session_id)
+
+            async def _clear():
+                async with NotebookLMClient(auth) as client:
+                    service = ConversationService(client)
+                    return service.clear_cache()
+
+            result = run_async(_clear())
+            if result:
+                console.print("[green]Local conversation cache cleared[/green]")
+            else:
+                console.print("[yellow]No cache to clear[/yellow]")
+            return
+
+        # Get history from server
+        nb_id = require_notebook(notebook_id)
+        cookies, csrf, session_id = get_client(ctx)
+        auth = AuthTokens(cookies=cookies, csrf_token=csrf, session_id=session_id)
+
+        async def _get():
+            async with NotebookLMClient(auth) as client:
+                service = ConversationService(client)
+                return await service.get_history(nb_id, limit=limit)
+
+        history = run_async(_get())
+        if history:
+            console.print(f"[bold cyan]Conversation History (last {limit}):[/bold cyan]")
+            console.print(history)
+        else:
+            console.print("[yellow]No conversation history[/yellow]")
 
     except Exception as e:
         handle_error(e)
@@ -539,6 +594,7 @@ def notebook():
       delete     Delete a notebook
       rename     Rename a notebook
       share      Share a notebook
+      ask        Ask a question
       summary    Get notebook summary
       analytics  Get notebook analytics
       history    Get conversation history
@@ -685,38 +741,30 @@ def notebook_analytics(ctx, notebook_id):
 
 
 @notebook.command("history")
-@click.argument("notebook_id")
-@click.option("--limit", "-n", default=20, help="Number of messages")
+@click.option("-n", "--notebook", "notebook_id", default=None, help="Notebook ID (uses current if not set)")
+@click.option("--limit", "-l", default=20, help="Number of messages")
+@click.option("--clear", is_flag=True, help="Clear local conversation cache")
 @click.pass_context
-def notebook_history(ctx, notebook_id, limit):
-    """Get conversation history."""
-    try:
-        cookies, csrf, session_id = get_client(ctx)
-        auth = AuthTokens(cookies=cookies, csrf_token=csrf, session_id=session_id)
+def notebook_history(ctx, notebook_id, limit, clear):
+    """Get conversation history or clear local cache.
 
-        async def _get():
-            async with NotebookLMClient(auth) as client:
-                return await client.get_conversation_history(notebook_id, limit=limit)
-
-        history = run_async(_get())
-        if history:
-            console.print(f"[bold cyan]Conversation History (last {limit}):[/bold cyan]")
-            console.print(history)
-        else:
-            console.print("[yellow]No conversation history[/yellow]")
-
-    except Exception as e:
-        handle_error(e)
+    \b
+    Example:
+      notebooklm notebook history              # Show history for current notebook
+      notebooklm notebook history -n nb123     # Show history for specific notebook
+      notebooklm notebook history --clear      # Clear local cache
+    """
+    ctx.invoke(history_shortcut, notebook_id=notebook_id, limit=limit, clear=clear)
 
 
-@notebook.command("query")
+@notebook.command("ask")
 @click.argument("notebook_id")
-@click.argument("query_text")
+@click.argument("question")
 @click.option("--conversation-id", "-c", default=None, help="Continue a conversation")
 @click.pass_context
-def notebook_query(ctx, notebook_id, query_text, conversation_id):
-    """Chat with a notebook."""
-    ctx.invoke(query_shortcut, notebook_id=notebook_id, query_text=query_text, conversation_id=conversation_id)
+def notebook_ask(ctx, notebook_id, question, conversation_id):
+    """Ask a notebook a question."""
+    ctx.invoke(ask_shortcut, notebook_id=notebook_id, question=question, conversation_id=conversation_id)
 
 
 @notebook.command("research")

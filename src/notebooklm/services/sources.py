@@ -23,24 +23,73 @@ class Source:
     def from_api_response(
         cls, data: list[Any], notebook_id: Optional[str] = None
     ) -> "Source":
-        # Handle nested response: [[[[id], title, metadata, ...]]]
-        if data and isinstance(data[0], list) and len(data[0]) > 0:
+        """Parse source data from various API response formats.
+
+        The API returns different structures for different operations:
+        - add_source: [[[[id], title, metadata]]] (deeply nested)
+        - list_sources: [[[id], title, metadata], ...] (one level less nesting)
+        - rename_source: May return simpler structure
+        """
+        if not data or not isinstance(data, list):
+            raise ValueError(f"Invalid source data: {data}")
+
+        # Try deeply nested format: [[[[id], title, metadata, ...]]]
+        if isinstance(data[0], list) and len(data[0]) > 0:
             if isinstance(data[0][0], list) and len(data[0][0]) > 0:
-                entry = data[0][0]
-                source_id = entry[0][0] if isinstance(entry[0], list) else entry[0]
-                title = entry[1] if len(entry) > 1 else None
+                # Check if it's deeply nested (data[0][0][0] is a list) vs medium nested (data[0][0][0] is a string)
+                if isinstance(data[0][0][0], list):
+                    # Deeply nested: [[[[id], title, ...]]]
+                    entry = data[0][0]
+                    source_id = entry[0][0] if isinstance(entry[0], list) else entry[0]
+                    title = entry[1] if len(entry) > 1 else None
+                else:
+                    # Medium nested: [[['id'], 'title', ...]]
+                    entry = data[0]
+                    source_id = entry[0][0] if isinstance(entry[0], list) else entry[0]
+                    title = entry[1] if len(entry) > 1 else None
+
+                    # Try to extract URL if present
+                    url = None
+                    if len(entry) > 2 and isinstance(entry[2], list):
+                        if len(entry[2]) > 7 and isinstance(entry[2][7], list):
+                            url = entry[2][7][0] if entry[2][7] else None
+
+                    return cls(
+                        id=str(source_id),
+                        title=title,
+                        url=url,
+                        source_type="text"
+                    )
+
+                # Deeply nested: continue with URL extraction and source type detection
+                # Try multiple locations for URL
                 url = None
-                if len(entry) > 2 and isinstance(entry[2], list) and len(entry[2]) > 7:
-                    url_list = entry[2][7]
-                    if isinstance(url_list, list) and len(url_list) > 0:
-                        url = url_list[0]
+                if len(entry) > 2 and isinstance(entry[2], list):
+                    # Try position [2][7] (common for URL sources)
+                    if len(entry[2]) > 7:
+                        url_list = entry[2][7]
+                        if isinstance(url_list, list) and len(url_list) > 0:
+                            url = url_list[0]
+                    # If not found, try position [2][0] (alternate location)
+                    if not url and len(entry[2]) > 0:
+                        if isinstance(entry[2][0], str) and entry[2][0].startswith('http'):
+                            url = entry[2][0]
+
+                # Determine source type
+                source_type = "text"
+                if url:
+                    source_type = "youtube" if "youtube.com" in url or "youtu.be" in url else "url"
+                elif title and (title.endswith('.pdf') or title.endswith('.txt')):
+                    source_type = "text_file"
+
                 return cls(
                     id=str(source_id),
                     title=title,
                     url=url,
-                    source_type="url" if url else "text",
+                    source_type=source_type,
                 )
 
+        # Simple flat format: [id, title] or [id, title, ...]
         source_id = data[0] if len(data) > 0 else ""
         title = data[1] if len(data) > 1 else None
         return cls(id=str(source_id), title=title, source_type="text")

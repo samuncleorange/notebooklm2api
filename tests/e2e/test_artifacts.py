@@ -189,8 +189,15 @@ class TestSlideDeckGeneration:
 @requires_auth
 @pytest.mark.e2e
 class TestDataTableGeneration:
+    """Data table generation tests.
+
+    Note: These tests may fail due to API rate limiting or quota restrictions.
+    Data table generation is documented as unreliable in E2E tests.
+    """
+
     @pytest.mark.asyncio
     @pytest.mark.slow
+    @pytest.mark.xfail(reason="Data table API may be rate-limited or quota-restricted")
     async def test_generate_data_table_default(
         self, client, test_notebook_id, created_artifacts, cleanup_artifacts
     ):
@@ -199,6 +206,7 @@ class TestDataTableGeneration:
 
     @pytest.mark.asyncio
     @pytest.mark.slow
+    @pytest.mark.xfail(reason="Data table API may be rate-limited or quota-restricted")
     async def test_generate_data_table_with_instructions(
         self, client, test_notebook_id, created_artifacts, cleanup_artifacts
     ):

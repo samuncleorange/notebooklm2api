@@ -3,6 +3,7 @@
 from .notebooks import NotebookService, Notebook
 from .sources import SourceService, Source
 from .artifacts import ArtifactService, Artifact, ArtifactStatus
+from .conversation import ConversationService, AskResult, ConversationTurn
 
 __all__ = [
     "NotebookService",
@@ -12,4 +13,7 @@ __all__ = [
     "ArtifactService",
     "Artifact",
     "ArtifactStatus",
+    "ConversationService",
+    "AskResult",
+    "ConversationTurn",
 ]
