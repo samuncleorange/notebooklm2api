@@ -52,6 +52,7 @@ from .rpc import (
     InfographicDetail,
     SlideDeckFormat,
     SlideDeckLength,
+    ReportFormat,
 )
 
 console = Console()
@@ -1477,9 +1478,7 @@ def generate():
       infographic  Infographic
       data-table   Data table
       mind-map     Mind map
-      study-guide  Study guide (artifact)
-      briefing-doc Briefing document (artifact)
-      blog-post    Blog post (artifact)
+      report       Report (briefing-doc, study-guide, blog-post, custom)
     """
     pass
 
@@ -1908,27 +1907,73 @@ def generate_mind_map(ctx, notebook_id):
         handle_error(e)
 
 
-@generate.command("study-guide")
+@generate.command("report")
+@click.argument("description", default="", required=False)
+@click.option("--format", "report_format",
+              type=click.Choice(["briefing-doc", "study-guide", "blog-post", "custom"]),
+              default="briefing-doc", help="Report format (default: briefing-doc)")
 @click.option("-n", "--notebook", "notebook_id", default=None, help="Notebook ID (uses current if not set)")
 @click.option("--wait/--no-wait", default=False, help="Wait for completion (default: no-wait)")
 @click.pass_context
-def generate_study_guide(ctx, notebook_id, wait):
-    """Generate study guide (creates artifact)."""
+def generate_report_cmd(ctx, description, report_format, notebook_id, wait):
+    """Generate a report (briefing doc, study guide, blog post, or custom).
+
+    \b
+    Examples:
+      notebooklm generate report                              # briefing-doc (default)
+      notebooklm generate report --format study-guide         # study guide
+      notebooklm generate report --format blog-post           # blog post
+      notebooklm generate report "Create a white paper..."    # custom report
+      notebooklm generate report --format blog-post "Focus on key insights"
+    """
     try:
         nb_id = require_notebook(notebook_id)
         cookies, csrf, session_id = get_client(ctx)
         auth = AuthTokens(cookies=cookies, csrf_token=csrf, session_id=session_id)
 
+        # Smart detection: if description provided without explicit format change, treat as custom
+        actual_format = report_format
+        custom_prompt = None
+        if description:
+            if report_format == "briefing-doc":
+                # User provided description but didn't change format -> custom
+                actual_format = "custom"
+                custom_prompt = description
+            else:
+                # User provided both format and description -> use as instructions
+                custom_prompt = description
+
+        # Map CLI format names to ReportFormat enum
+        format_map = {
+            "briefing-doc": ReportFormat.BRIEFING_DOC,
+            "study-guide": ReportFormat.STUDY_GUIDE,
+            "blog-post": ReportFormat.BLOG_POST,
+            "custom": ReportFormat.CUSTOM,
+        }
+        report_format_enum = format_map[actual_format]
+
+        # Display name for messages
+        format_display = {
+            "briefing-doc": "briefing document",
+            "study-guide": "study guide",
+            "blog-post": "blog post",
+            "custom": "custom report",
+        }[actual_format]
+
         async def _generate():
             async with NotebookLMClient(auth) as client:
-                result = await client.generate_study_guide(nb_id)
+                result = await client.generate_report(
+                    nb_id,
+                    report_format=report_format_enum,
+                    custom_prompt=custom_prompt,
+                )
 
                 if not result:
                     return None
 
                 task_id = result.get("artifact_id")
                 if wait and task_id:
-                    console.print(f"[yellow]Generating study guide...[/yellow]")
+                    console.print(f"[yellow]Generating {format_display}...[/yellow]")
                     service = ArtifactService(client)
                     return await service.wait_for_completion(nb_id, task_id, poll_interval=5.0)
                 return result
@@ -1936,91 +1981,9 @@ def generate_study_guide(ctx, notebook_id, wait):
         status = run_async(_generate())
 
         if not status:
-            console.print("[red]Study guide generation failed (Google may be rate limiting)[/red]")
+            console.print(f"[red]Report generation failed (Google may be rate limiting)[/red]")
         elif hasattr(status, "is_complete") and status.is_complete:
-            console.print("[green]Study guide ready[/green]")
-        elif hasattr(status, "is_failed") and status.is_failed:
-            console.print(f"[red]Failed:[/red] {status.error}")
-        else:
-            artifact_id = status.get("artifact_id") if isinstance(status, dict) else None
-            console.print(f"[yellow]Started:[/yellow] {artifact_id or status}")
-
-    except Exception as e:
-        handle_error(e)
-
-
-@generate.command("briefing-doc")
-@click.option("-n", "--notebook", "notebook_id", default=None, help="Notebook ID (uses current if not set)")
-@click.option("--wait/--no-wait", default=False, help="Wait for completion (default: no-wait)")
-@click.pass_context
-def generate_briefing_doc(ctx, notebook_id, wait):
-    """Generate briefing document (creates artifact)."""
-    try:
-        nb_id = require_notebook(notebook_id)
-        cookies, csrf, session_id = get_client(ctx)
-        auth = AuthTokens(cookies=cookies, csrf_token=csrf, session_id=session_id)
-
-        async def _generate():
-            async with NotebookLMClient(auth) as client:
-                result = await client.generate_briefing_doc(nb_id)
-
-                if not result:
-                    return None
-
-                task_id = result.get("artifact_id")
-                if wait and task_id:
-                    console.print(f"[yellow]Generating briefing document...[/yellow]")
-                    service = ArtifactService(client)
-                    return await service.wait_for_completion(nb_id, task_id, poll_interval=5.0)
-                return result
-
-        status = run_async(_generate())
-
-        if not status:
-            console.print("[red]Briefing document generation failed (Google may be rate limiting)[/red]")
-        elif hasattr(status, "is_complete") and status.is_complete:
-            console.print("[green]Briefing document ready[/green]")
-        elif hasattr(status, "is_failed") and status.is_failed:
-            console.print(f"[red]Failed:[/red] {status.error}")
-        else:
-            artifact_id = status.get("artifact_id") if isinstance(status, dict) else None
-            console.print(f"[yellow]Started:[/yellow] {artifact_id or status}")
-
-    except Exception as e:
-        handle_error(e)
-
-
-@generate.command("blog-post")
-@click.option("-n", "--notebook", "notebook_id", default=None, help="Notebook ID (uses current if not set)")
-@click.option("--wait/--no-wait", default=False, help="Wait for completion (default: no-wait)")
-@click.pass_context
-def generate_blog_post(ctx, notebook_id, wait):
-    """Generate blog post (creates artifact)."""
-    try:
-        nb_id = require_notebook(notebook_id)
-        cookies, csrf, session_id = get_client(ctx)
-        auth = AuthTokens(cookies=cookies, csrf_token=csrf, session_id=session_id)
-
-        async def _generate():
-            async with NotebookLMClient(auth) as client:
-                result = await client.generate_blog_post(nb_id)
-
-                if not result:
-                    return None
-
-                task_id = result.get("artifact_id")
-                if wait and task_id:
-                    console.print(f"[yellow]Generating blog post...[/yellow]")
-                    service = ArtifactService(client)
-                    return await service.wait_for_completion(nb_id, task_id, poll_interval=5.0)
-                return result
-
-        status = run_async(_generate())
-
-        if not status:
-            console.print("[red]Blog post generation failed (Google may be rate limiting)[/red]")
-        elif hasattr(status, "is_complete") and status.is_complete:
-            console.print("[green]Blog post ready[/green]")
+            console.print(f"[green]{format_display.title()} ready[/green]")
         elif hasattr(status, "is_failed") and status.is_failed:
             console.print(f"[red]Failed:[/red] {status.error}")
         else:
