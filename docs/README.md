@@ -21,7 +21,7 @@ This folder contains all project documentation. AI agents must follow the rules 
 
 2. **Reference docs are stable** - Only update `reference/` files when fixing errors or adding significant new information.
 
-3. **Designs are permanent** - Files in `designs/` document architectural decisions and should not be deleted.
+3. **Designs are living docs** - Files in `designs/` document architectural decisions. Delete when implementation is complete and design is captured elsewhere (code comments, PRs).
 
 4. **Scratch is temporary** - Files in `scratch/` can be deleted after 30 days. Always use date prefix.
 

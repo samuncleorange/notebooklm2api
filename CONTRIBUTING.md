@@ -116,7 +116,7 @@ docs/
 │   ├── architecture.md    # Code structure
 │   ├── debugging.md       # Network capture guide
 │   ├── testing.md         # Running tests
-│   └── rpc-protocol.md    # RPC protocol reference
+│   └── (see reference/internals for RPC docs)
 ├── reference/
 │   └── internals/         # Reverse engineering notes
 └── scratch/               # Temporary agent work (disposable)
