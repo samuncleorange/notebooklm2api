@@ -1,17 +1,22 @@
 """Core infrastructure for NotebookLM API client."""
 
 import httpx
+from collections import OrderedDict
 from typing import Any, Optional
 from urllib.parse import urlencode
 
 from .auth import AuthTokens
 from .rpc import (
     RPCMethod,
+    RPCError,
     BATCHEXECUTE_URL,
     encode_rpc_request,
     build_request_body,
     decode_response,
 )
+
+# Maximum number of conversations to cache (FIFO eviction)
+MAX_CONVERSATION_CACHE_SIZE = 100
 
 
 class ClientCore:
@@ -21,7 +26,6 @@ class ClientCore:
     - HTTP client lifecycle (open/close)
     - RPC call encoding/decoding
     - Authentication headers
-    - Request ID counter
     - Conversation cache
 
     This class is used internally by the sub-client APIs (NotebooksAPI,
@@ -36,8 +40,10 @@ class ClientCore:
         """
         self.auth = auth
         self._http_client: Optional[httpx.AsyncClient] = None
-        self._reqid_counter = 100000
-        self._conversation_cache: dict[str, list[dict[str, Any]]] = {}
+        # Request ID counter for chat API (must be unique per request)
+        self._reqid_counter: int = 100000
+        # OrderedDict for FIFO eviction when cache exceeds MAX_CONVERSATION_CACHE_SIZE
+        self._conversation_cache: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
 
     async def open(self) -> None:
         """Open the HTTP client connection.
@@ -66,6 +72,19 @@ class ClientCore:
     def is_open(self) -> bool:
         """Check if the HTTP client is open."""
         return self._http_client is not None
+
+    def update_auth_headers(self) -> None:
+        """Update HTTP client headers with current auth tokens.
+
+        Call this after modifying auth tokens (e.g., after refresh_auth())
+        to ensure the HTTP client uses the updated credentials.
+
+        Raises:
+            RuntimeError: If client is not initialized.
+        """
+        if not self._http_client:
+            raise RuntimeError("Client not initialized. Use 'async with' context.")
+        self._http_client.headers["Cookie"] = self.auth.cookie_header
 
     def _build_url(self, rpc_method: RPCMethod, source_path: str = "/") -> str:
         """Build the batchexecute URL for an RPC call.
@@ -115,10 +134,30 @@ class ClientCore:
         rpc_request = encode_rpc_request(method, params)
         body = build_request_body(rpc_request, self.auth.csrf_token)
 
-        response = await self._http_client.post(url, content=body)
-        response.raise_for_status()
+        try:
+            response = await self._http_client.post(url, content=body)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RPCError(
+                f"HTTP {e.response.status_code} calling {method.name}: {e.response.reason_phrase}",
+                rpc_id=method.value,
+            ) from e
+        except httpx.RequestError as e:
+            raise RPCError(
+                f"Request failed calling {method.name}: {e}",
+                rpc_id=method.value,
+            ) from e
 
-        return decode_response(response.text, method.value, allow_null=allow_null)
+        try:
+            return decode_response(response.text, method.value, allow_null=allow_null)
+        except RPCError:
+            # Re-raise RPCError as-is (already has context from decoder)
+            raise
+        except Exception as e:
+            raise RPCError(
+                f"Failed to decode response for {method.name}: {e}",
+                rpc_id=method.value,
+            ) from e
 
     def get_http_client(self) -> httpx.AsyncClient:
         """Get the underlying HTTP client for direct requests.
@@ -140,14 +179,23 @@ class ClientCore:
     ) -> None:
         """Cache a conversation turn locally.
 
+        Uses FIFO eviction when cache exceeds MAX_CONVERSATION_CACHE_SIZE.
+
         Args:
             conversation_id: The conversation ID.
             query: The user's question.
             answer: The AI's response.
             turn_number: The turn number in the conversation.
         """
-        if conversation_id not in self._conversation_cache:
+        is_new_conversation = conversation_id not in self._conversation_cache
+
+        # Only evict when adding a NEW conversation at capacity
+        if is_new_conversation:
+            while len(self._conversation_cache) >= MAX_CONVERSATION_CACHE_SIZE:
+                # popitem(last=False) removes oldest entry (FIFO)
+                self._conversation_cache.popitem(last=False)
             self._conversation_cache[conversation_id] = []
+
         self._conversation_cache[conversation_id].append({
             "query": query,
             "answer": answer,

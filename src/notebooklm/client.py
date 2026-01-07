@@ -126,6 +126,9 @@ class NotebookLMClient:
 
         Returns:
             Updated AuthTokens.
+
+        Raises:
+            ValueError: If token extraction fails (page structure may have changed).
         """
         import re
 
@@ -133,14 +136,33 @@ class NotebookLMClient:
         response = await http_client.get("https://notebooklm.google.com/")
         response.raise_for_status()
 
-        # Extract SNlM0e (CSRF token)
-        csrf_match = re.search(r'"SNlM0e":"([^"]+)"', response.text)
-        if csrf_match:
-            self._core.auth.csrf_token = csrf_match.group(1)
+        # Check for redirect to login page
+        final_url = str(response.url)
+        if "accounts.google.com" in final_url:
+            raise ValueError(
+                "Authentication expired. Run 'notebooklm login' to re-authenticate."
+            )
 
-        # Extract FdrFJe (Session ID)
+        # Extract SNlM0e (CSRF token) - REQUIRED
+        csrf_match = re.search(r'"SNlM0e":"([^"]+)"', response.text)
+        if not csrf_match:
+            raise ValueError(
+                "Failed to extract CSRF token (SNlM0e). "
+                "Page structure may have changed or authentication expired."
+            )
+        self._core.auth.csrf_token = csrf_match.group(1)
+
+        # Extract FdrFJe (Session ID) - REQUIRED
         sid_match = re.search(r'"FdrFJe":"([^"]+)"', response.text)
-        if sid_match:
-            self._core.auth.session_id = sid_match.group(1)
+        if not sid_match:
+            raise ValueError(
+                "Failed to extract session ID (FdrFJe). "
+                "Page structure may have changed or authentication expired."
+            )
+        self._core.auth.session_id = sid_match.group(1)
+
+        # CRITICAL: Update the HTTP client headers with new auth tokens
+        # Without this, the client continues using stale credentials
+        self._core.update_auth_headers()
 
         return self._core.auth

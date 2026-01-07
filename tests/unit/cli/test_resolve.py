@@ -89,21 +89,25 @@ class TestResolveNotebookId:
         mock_client.notebooks.list.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_empty_id_returns_empty(self, mock_client):
-        """Empty string returns unchanged."""
+    async def test_empty_id_raises_exception(self, mock_client):
+        """Empty string raises ClickException."""
         mock_client.notebooks.list = AsyncMock()
 
-        result = await resolve_notebook_id(mock_client, "")
-        assert result == ""
+        with pytest.raises(click.ClickException) as exc_info:
+            await resolve_notebook_id(mock_client, "")
+
+        assert "cannot be empty" in str(exc_info.value)
         mock_client.notebooks.list.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_none_id_returns_none(self, mock_client):
-        """None returns None (falsy value handling)."""
+    async def test_none_id_raises_exception(self, mock_client):
+        """None raises ClickException."""
         mock_client.notebooks.list = AsyncMock()
 
-        result = await resolve_notebook_id(mock_client, None)
-        assert result is None
+        with pytest.raises(click.ClickException) as exc_info:
+            await resolve_notebook_id(mock_client, None)
+
+        assert "cannot be empty" in str(exc_info.value)
         mock_client.notebooks.list.assert_not_called()
 
     @pytest.mark.asyncio
@@ -251,21 +255,25 @@ class TestResolveSourceId:
         mock_client_with_sources.sources.list.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_empty_id_returns_empty(self, mock_client_with_sources):
-        """Empty string returns unchanged."""
+    async def test_empty_id_raises_exception(self, mock_client_with_sources):
+        """Empty string raises ClickException."""
         mock_client_with_sources.sources.list = AsyncMock()
 
-        result = await resolve_source_id(mock_client_with_sources, "nb_123", "")
-        assert result == ""
+        with pytest.raises(click.ClickException) as exc_info:
+            await resolve_source_id(mock_client_with_sources, "nb_123", "")
+
+        assert "cannot be empty" in str(exc_info.value)
         mock_client_with_sources.sources.list.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_none_id_returns_none(self, mock_client_with_sources):
-        """None returns None (falsy value handling)."""
+    async def test_none_id_raises_exception(self, mock_client_with_sources):
+        """None raises ClickException."""
         mock_client_with_sources.sources.list = AsyncMock()
 
-        result = await resolve_source_id(mock_client_with_sources, "nb_123", None)
-        assert result is None
+        with pytest.raises(click.ClickException) as exc_info:
+            await resolve_source_id(mock_client_with_sources, "nb_123", None)
+
+        assert "cannot be empty" in str(exc_info.value)
         mock_client_with_sources.sources.list.assert_not_called()
 
     @pytest.mark.asyncio
