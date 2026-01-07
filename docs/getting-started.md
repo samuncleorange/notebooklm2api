@@ -144,6 +144,23 @@ async def main():
 asyncio.run(main())
 ```
 
+## Claude Code Integration
+
+If you use [Claude Code](https://claude.ai/code), you can install a skill for natural language automation:
+
+```bash
+notebooklm skill install
+```
+
+After installation, Claude recognizes NotebookLM commands via:
+- Explicit: `/notebooklm list`, `/notebooklm generate audio`
+- Natural language: "Create a podcast about quantum computing", "Summarize these URLs"
+
+Check installation status:
+```bash
+notebooklm skill status
+```
+
 ## Next Steps
 
 - [CLI Reference](cli-reference.md) - Complete command documentation

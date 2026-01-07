@@ -77,6 +77,7 @@ asyncio.run(main())
 - **Generation**: Audio (podcasts), video, slides, quizzes, flashcards, reports, infographics, mind maps
 - **Research**: Web and Drive research agents
 - **Downloads**: Audio, video, slides, infographics
+- **Claude Code Integration**: Install as a skill for natural language automation
 
 ## Documentation
 

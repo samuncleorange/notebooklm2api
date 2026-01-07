@@ -113,6 +113,19 @@ notebooklm [--storage PATH] [--version] <command> [OPTIONS] [ARGS]
 | `rename <id> <title>` | Note ID, title | - | `note rename note123 "Title"` |
 | `delete <id>` | Note ID | - | `note delete note123` |
 
+### Skill Commands (`notebooklm skill <cmd>`)
+
+Manage Claude Code skill integration.
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `install` | Install/update skill to ~/.claude/skills/ | `skill install` |
+| `status` | Check installation and version | `skill status` |
+| `uninstall` | Remove skill | `skill uninstall` |
+| `show` | Display skill content | `skill show` |
+
+After installation, Claude Code recognizes NotebookLM commands via `/notebooklm` or natural language like "create a podcast about X".
+
 ---
 
 ## Detailed Command Reference
