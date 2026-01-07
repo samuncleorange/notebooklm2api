@@ -242,3 +242,17 @@ class DriveMimeType(str, Enum):
     GOOGLE_SLIDES = "application/vnd.google-apps.presentation"
     GOOGLE_SHEETS = "application/vnd.google-apps.spreadsheet"
     PDF = "application/pdf"
+
+
+class SourceStatus(int, Enum):
+    """Processing status of a source.
+
+    After adding a source to a notebook, it goes through processing
+    before it can be used for chat or artifact generation.
+
+    Values reverse-engineered from GET_NOTEBOOK API response at source[3][1].
+    """
+
+    PROCESSING = 1  # Source is being processed (indexing content)
+    READY = 2  # Source is ready for use
+    ERROR = 3  # Source processing failed

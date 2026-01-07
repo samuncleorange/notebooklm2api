@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 from .conftest import requires_auth
-from notebooklm import Source
+from notebooklm import Source, SourceStatus, SourceTimeoutError
 
 
 @requires_auth
@@ -178,3 +178,97 @@ class TestSourceMutations:
         freshness = await client.sources.check_freshness(temp_notebook.id, source.id)
         # check_freshness() returns bool: True if fresh, False if stale
         assert isinstance(freshness, bool)
+
+
+@requires_auth
+@pytest.mark.e2e
+class TestSourceStatus:
+    """Tests for source status and readiness polling."""
+
+    @pytest.mark.asyncio
+    async def test_source_has_status_field(self, client, test_notebook_id):
+        """Test that sources have a status field."""
+        sources = await client.sources.list(test_notebook_id)
+        if not sources:
+            pytest.skip("No sources available to check status")
+
+        source = sources[0]
+        assert hasattr(source, "status")
+        assert source.status in (
+            SourceStatus.PROCESSING,
+            SourceStatus.READY,
+            SourceStatus.ERROR,
+        )
+
+    @pytest.mark.asyncio
+    async def test_source_is_ready_property(self, client, test_notebook_id):
+        """Test that is_ready property works correctly."""
+        sources = await client.sources.list(test_notebook_id)
+        if not sources:
+            pytest.skip("No sources available to check")
+
+        # At least one source in an existing notebook should be ready
+        ready_sources = [s for s in sources if s.is_ready]
+        assert len(ready_sources) > 0, "Expected at least one ready source in test notebook"
+
+    @pytest.mark.asyncio
+    @pytest.mark.stable
+    async def test_add_text_with_wait(self, client, temp_notebook):
+        """Test adding a text source with wait=True."""
+        source = await client.sources.add_text(
+            temp_notebook.id,
+            "Wait Test Source",
+            "Content for testing wait functionality. " * 10,
+            wait=True,
+            wait_timeout=60.0,
+        )
+        assert isinstance(source, Source)
+        assert source.is_ready, "Source should be ready after wait=True"
+
+    @pytest.mark.asyncio
+    @pytest.mark.slow
+    @pytest.mark.stable
+    async def test_wait_until_ready(self, client, temp_notebook):
+        """Test wait_until_ready() method."""
+        # Add source without waiting
+        source = await client.sources.add_text(
+            temp_notebook.id,
+            "Polling Test Source",
+            "Content for testing polling functionality. " * 10,
+        )
+        assert source.id is not None
+
+        # Wait for it to be ready
+        ready_source = await client.sources.wait_until_ready(
+            temp_notebook.id,
+            source.id,
+            timeout=60.0,
+        )
+        assert ready_source.is_ready
+
+    @pytest.mark.asyncio
+    @pytest.mark.slow
+    @pytest.mark.stable
+    async def test_wait_for_multiple_sources(self, client, temp_notebook):
+        """Test wait_for_sources() for batch operations."""
+        # Add multiple sources without waiting
+        source1 = await client.sources.add_text(
+            temp_notebook.id,
+            "Batch Test 1",
+            "First batch test content. " * 10,
+        )
+        source2 = await client.sources.add_text(
+            temp_notebook.id,
+            "Batch Test 2",
+            "Second batch test content. " * 10,
+        )
+
+        # Wait for all to be ready
+        ready_sources = await client.sources.wait_for_sources(
+            temp_notebook.id,
+            [source1.id, source2.id],
+            timeout=60.0,
+        )
+
+        assert len(ready_sources) == 2
+        assert all(s.is_ready for s in ready_sources)

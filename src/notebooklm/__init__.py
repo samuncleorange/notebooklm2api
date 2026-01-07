@@ -49,6 +49,11 @@ from .types import (
     ConversationTurn,
     AskResult,
     ChatMode,
+    # Exceptions
+    SourceError,
+    SourceProcessingError,
+    SourceTimeoutError,
+    SourceNotFoundError,
     # Re-exported enums
     AudioFormat,
     AudioLength,
@@ -64,6 +69,7 @@ from .types import (
     ChatGoal,
     ChatResponseLength,
     DriveMimeType,
+    SourceStatus,
 )
 
 __all__ = [
@@ -101,6 +107,11 @@ __all__ = [
     "ConversationTurn",
     "AskResult",
     "ChatMode",
+    # Exceptions
+    "SourceError",
+    "SourceProcessingError",
+    "SourceTimeoutError",
+    "SourceNotFoundError",
     # Enums
     "AudioFormat",
     "AudioLength",
@@ -116,4 +127,5 @@ __all__ = [
     "ChatGoal",
     "ChatResponseLength",
     "DriveMimeType",
+    "SourceStatus",
 ]

@@ -29,6 +29,7 @@ from .rpc.types import (
     ChatGoal,
     ChatResponseLength,
     DriveMimeType,
+    SourceStatus,
 )
 
 __all__ = [
@@ -45,6 +46,11 @@ __all__ = [
     "ConversationTurn",
     "AskResult",
     "ChatMode",
+    # Exceptions
+    "SourceError",
+    "SourceProcessingError",
+    "SourceTimeoutError",
+    "SourceNotFoundError",
     # Re-exported enums
     "StudioContentType",
     "AudioFormat",
@@ -61,6 +67,7 @@ __all__ = [
     "ChatGoal",
     "ChatResponseLength",
     "DriveMimeType",
+    "SourceStatus",
 ]
 
 
@@ -159,15 +166,90 @@ class NotebookDescription:
 # =============================================================================
 
 
+class SourceError(Exception):
+    """Base exception for source-related errors."""
+
+    pass
+
+
+class SourceProcessingError(SourceError):
+    """Raised when source processing fails (status=ERROR).
+
+    Attributes:
+        source_id: The ID of the source that failed.
+        status: The status code (typically 3 for ERROR).
+    """
+
+    def __init__(self, source_id: str, status: int = 3, message: str = ""):
+        self.source_id = source_id
+        self.status = status
+        msg = message or f"Source {source_id} failed to process"
+        super().__init__(msg)
+
+
+class SourceTimeoutError(SourceError):
+    """Raised when waiting for source readiness times out.
+
+    Attributes:
+        source_id: The ID of the source.
+        timeout: The timeout duration in seconds.
+        last_status: The last observed status before timeout.
+    """
+
+    def __init__(self, source_id: str, timeout: float, last_status: Optional[int] = None):
+        self.source_id = source_id
+        self.timeout = timeout
+        self.last_status = last_status
+        status_info = f" (last status: {last_status})" if last_status is not None else ""
+        super().__init__(f"Source {source_id} not ready after {timeout:.1f}s{status_info}")
+
+
+class SourceNotFoundError(SourceError):
+    """Raised when a source is not found in the notebook.
+
+    Attributes:
+        source_id: The ID of the source that was not found.
+    """
+
+    def __init__(self, source_id: str):
+        self.source_id = source_id
+        super().__init__(f"Source {source_id} not found")
+
+
 @dataclass
 class Source:
-    """Represents a NotebookLM source."""
+    """Represents a NotebookLM source.
+
+    Attributes:
+        id: Unique source identifier.
+        title: Source title (may be URL if not yet processed).
+        url: Original URL for web/YouTube sources.
+        source_type: Type of source (text, url, youtube, pdf, upload, etc.).
+        created_at: When the source was added.
+        status: Processing status (1=processing, 2=ready, 3=error).
+    """
 
     id: str
     title: Optional[str] = None
     url: Optional[str] = None
     source_type: str = "text"
     created_at: Optional[datetime] = None
+    status: int = SourceStatus.READY  # Default to READY (2)
+
+    @property
+    def is_ready(self) -> bool:
+        """Check if source is ready for use (status=READY)."""
+        return self.status == SourceStatus.READY
+
+    @property
+    def is_processing(self) -> bool:
+        """Check if source is still being processed (status=PROCESSING)."""
+        return self.status == SourceStatus.PROCESSING
+
+    @property
+    def is_error(self) -> bool:
+        """Check if source processing failed (status=ERROR)."""
+        return self.status == SourceStatus.ERROR
 
     @classmethod
     def from_api_response(
@@ -179,6 +261,13 @@ class Source:
         - add_source: [[[[id], title, metadata]]] (deeply nested)
         - list_sources: [[[id], title, metadata], ...] (one level less nesting)
         - rename_source: May return simpler structure
+
+        Note:
+            This method does NOT parse the source status field. Sources created
+            via this method will have status=READY by default. To get accurate
+            status information (PROCESSING, READY, or ERROR), use
+            `client.sources.list()` or `client.sources.get()` which parse
+            status from the full notebook response structure.
         """
         if not data or not isinstance(data, list):
             raise ValueError(f"Invalid source data: {data}")

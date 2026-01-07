@@ -36,7 +36,8 @@ If commands fail with authentication errors, re-run `notebooklm login`.
 - `notebooklm list` - list notebooks
 - `notebooklm source list` - list sources
 - `notebooklm artifact list` - list artifacts
-- `notebooklm artifact wait` - wait for completion (in subagent context)
+- `notebooklm artifact wait` - wait for artifact completion (in subagent context)
+- `notebooklm source wait` - wait for source processing (in subagent context)
 - `notebooklm research status` - check research status
 - `notebooklm research wait` - wait for research (in subagent context)
 - `notebooklm use <id>` - set context
@@ -49,6 +50,7 @@ If commands fail with authentication errors, re-run `notebooklm login`.
 - `notebooklm generate *` - long-running, may fail
 - `notebooklm download *` - writes to filesystem
 - `notebooklm artifact wait` - long-running (when in main conversation)
+- `notebooklm source wait` - long-running (when in main conversation)
 - `notebooklm research wait` - long-running (when in main conversation)
 
 ## Quick Reference
@@ -64,6 +66,7 @@ If commands fail with authentication errors, re-run `notebooklm login`.
 | Add file | `notebooklm source add ./file.pdf` |
 | Add YouTube | `notebooklm source add "https://youtube.com/..."` |
 | List sources | `notebooklm source list` |
+| Wait for source processing | `notebooklm source wait <source_id>` |
 | Web research (fast) | `notebooklm source add-research "query"` |
 | Web research (deep) | `notebooklm source add-research "query" --mode deep --no-wait` |
 | Check research status | `notebooklm research status` |
@@ -146,6 +149,32 @@ When user wants full automation (generate and download when ready):
 
 **Source limits:** Max 50 sources per notebook
 **Supported types:** PDFs, YouTube URLs, web URLs, Google Docs, text files
+
+### Bulk Import with Source Waiting (Subagent Pattern)
+**Time:** Varies by source count
+
+When adding multiple sources and needing to wait for processing before chat/generation:
+
+1. Add sources (returns immediately with source IDs):
+   ```bash
+   notebooklm source add "https://url1.com"  # → source_id_1
+   notebooklm source add "https://url2.com"  # → source_id_2
+   ```
+2. **Spawn a subagent** to wait for sources to be ready:
+   ```bash
+   # Subagent runs:
+   notebooklm source wait <source_id_1> --timeout 120 --json
+   notebooklm source wait <source_id_2> --timeout 120 --json
+   ```
+3. Main conversation can continue while subagent waits
+4. Once sources are ready, proceed with chat or generation
+
+**Exit codes for source wait:**
+- `0` - Source is ready
+- `1` - Source not found or processing failed
+- `2` - Timeout reached
+
+**Why use source wait?** Sources need to be processed (indexed) before they can be used for chat or artifact generation. This typically takes 10-60 seconds depending on source size.
 
 ### Deep Web Research (Subagent Pattern)
 **Time:** 2-5 minutes, runs in background

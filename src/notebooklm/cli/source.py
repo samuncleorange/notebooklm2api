@@ -588,3 +588,121 @@ def source_stale(ctx, source_id, notebook_id, client_auth):
                 raise SystemExit(0)  # Is stale
 
     return _run()
+
+
+@source.command("wait")
+@click.argument("source_id")
+@click.option(
+    "-n",
+    "--notebook",
+    "notebook_id",
+    default=None,
+    help="Notebook ID (uses current if not set)",
+)
+@click.option(
+    "--timeout",
+    default=120,
+    type=int,
+    help="Maximum seconds to wait (default: 120)",
+)
+@click.option("--json", "json_output", is_flag=True, help="Output as JSON")
+@with_client
+def source_wait(ctx, source_id, notebook_id, timeout, json_output, client_auth):
+    """Wait for a source to finish processing.
+
+    After adding a source, it needs to be processed before it can be used
+    for chat or artifact generation. This command polls until the source
+    is ready or fails.
+
+    SOURCE_ID can be a full UUID or a partial prefix (e.g., 'abc' matches 'abc123...').
+
+    \b
+    Exit codes:
+      0 - Source is ready
+      1 - Source not found or processing failed
+      2 - Timeout reached
+
+    \b
+    Examples:
+      source wait abc123                    # Wait for source to be ready
+      source wait abc123 --timeout 300      # Wait up to 5 minutes
+      source wait abc123 --json             # Output status as JSON
+
+    \b
+    Subagent pattern for long-running operations:
+      # In main conversation, add source then spawn subagent to wait:
+      notebooklm source add https://example.com
+      # Subagent runs: notebooklm source wait <source_id>
+    """
+    from ..types import SourceProcessingError, SourceTimeoutError, SourceNotFoundError
+
+    nb_id = require_notebook(notebook_id)
+
+    async def _run():
+        async with NotebookLMClient(client_auth) as client:
+            resolved_id = await resolve_source_id(client, nb_id, source_id)
+
+            if not json_output:
+                console.print(f"[dim]Waiting for source {resolved_id}...[/dim]")
+
+            try:
+                source = await client.sources.wait_until_ready(
+                    nb_id,
+                    resolved_id,
+                    timeout=float(timeout),
+                )
+
+                if json_output:
+                    data = {
+                        "source_id": source.id,
+                        "title": source.title,
+                        "status": "ready",
+                        "status_code": source.status,
+                    }
+                    json_output_response(data)
+                else:
+                    console.print(f"[green]✓ Source ready:[/green] {source.id}")
+                    if source.title:
+                        console.print(f"[bold]Title:[/bold] {source.title}")
+
+            except SourceNotFoundError as e:
+                if json_output:
+                    data = {
+                        "source_id": e.source_id,
+                        "status": "not_found",
+                        "error": str(e),
+                    }
+                    json_output_response(data)
+                else:
+                    console.print(f"[red]✗ Source not found:[/red] {e.source_id}")
+                raise SystemExit(1)
+
+            except SourceProcessingError as e:
+                if json_output:
+                    data = {
+                        "source_id": e.source_id,
+                        "status": "error",
+                        "status_code": e.status,
+                        "error": str(e),
+                    }
+                    json_output_response(data)
+                else:
+                    console.print(f"[red]✗ Source processing failed:[/red] {e.source_id}")
+                raise SystemExit(1)
+
+            except SourceTimeoutError as e:
+                if json_output:
+                    data = {
+                        "source_id": e.source_id,
+                        "status": "timeout",
+                        "last_status_code": e.last_status,
+                        "timeout_seconds": e.timeout,
+                        "error": str(e),
+                    }
+                    json_output_response(data)
+                else:
+                    console.print(f"[yellow]⚠ Timeout waiting for source:[/yellow] {e.source_id}")
+                    console.print(f"[dim]Last status: {e.last_status}[/dim]")
+                raise SystemExit(2)
+
+    return _run()

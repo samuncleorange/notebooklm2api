@@ -1,14 +1,23 @@
 """Source operations API."""
 
+import asyncio
 import re
 import httpx
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from time import monotonic
+from typing import Any, Dict, List, Optional, Union
 
 from ._core import ClientCore
 from .rpc import RPCMethod, UPLOAD_URL
-from .types import Source
+from .rpc.types import SourceStatus
+from .types import (
+    Source,
+    SourceError,
+    SourceNotFoundError,
+    SourceProcessingError,
+    SourceTimeoutError,
+)
 
 
 class SourcesAPI:
@@ -105,12 +114,21 @@ class SourcesAPI:
                         except (TypeError, ValueError):
                             pass
 
+                # Extract status from src[3][1]
+                # Status codes: 1=processing, 2=ready, 3=error
+                status = SourceStatus.READY  # Default to ready
+                if len(src) > 3 and isinstance(src[3], list) and len(src[3]) > 1:
+                    status_code = src[3][1]
+                    if isinstance(status_code, int) and status_code in (1, 2, 3):
+                        status = status_code
+
                 sources.append(Source(
                     id=str(src_id),
                     title=title,
                     url=url,
                     source_type=source_type,
-                    created_at=created_at
+                    created_at=created_at,
+                    status=status,
                 ))
 
         return sources
@@ -123,29 +141,130 @@ class SourcesAPI:
             source_id: The source ID.
 
         Returns:
-            Source object, or None if not found.
+            Source object with current status, or None if not found.
         """
         # GET_SOURCE RPC doesn't work, so filter from notebook data instead
-        params = [notebook_id, None, [2], None, 0]
-        notebook = await self._core.rpc_call(
-            RPCMethod.GET_NOTEBOOK,
-            params,
-            source_path=f"/notebook/{notebook_id}",
-        )
-
-        if notebook and isinstance(notebook, list) and len(notebook) > 0:
-            nb_info = notebook[0]
-            if isinstance(nb_info, list) and len(nb_info) > 1:
-                sources_list = nb_info[1]
-                if isinstance(sources_list, list):
-                    for src in sources_list:
-                        if isinstance(src, list) and len(src) > 0:
-                            src_id = src[0][0] if isinstance(src[0], list) else src[0]
-                            if src_id == source_id:
-                                return Source.from_api_response([src])
+        sources = await self.list(notebook_id)
+        for source in sources:
+            if source.id == source_id:
+                return source
         return None
 
-    async def add_url(self, notebook_id: str, url: str) -> Source:
+    async def wait_until_ready(
+        self,
+        notebook_id: str,
+        source_id: str,
+        timeout: float = 120.0,
+        initial_interval: float = 1.0,
+        max_interval: float = 10.0,
+        backoff_factor: float = 1.5,
+    ) -> Source:
+        """Wait for a source to become ready.
+
+        Polls the source status until it becomes READY or ERROR, or timeout.
+        Uses exponential backoff to reduce API load.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_id: The source ID to wait for.
+            timeout: Maximum time to wait in seconds (default: 120).
+            initial_interval: Initial polling interval in seconds (default: 1).
+            max_interval: Maximum polling interval in seconds (default: 10).
+            backoff_factor: Multiplier for polling interval (default: 1.5).
+
+        Returns:
+            The ready Source object.
+
+        Raises:
+            SourceTimeoutError: If timeout is reached before source is ready.
+            SourceProcessingError: If source processing fails (status=ERROR).
+            SourceNotFoundError: If source is not found in the notebook.
+
+        Example:
+            source = await client.sources.add_url(notebook_id, url)
+            # Source may still be processing...
+            ready_source = await client.sources.wait_until_ready(
+                notebook_id, source.id
+            )
+            # Now safe to use in chat/artifacts
+        """
+        start = monotonic()
+        interval = initial_interval
+        last_status: Optional[int] = None
+
+        while True:
+            # Check timeout before each poll
+            elapsed = monotonic() - start
+            if elapsed >= timeout:
+                raise SourceTimeoutError(source_id, timeout, last_status)
+
+            source = await self.get(notebook_id, source_id)
+
+            if source is None:
+                raise SourceNotFoundError(source_id)
+
+            last_status = source.status
+
+            if source.is_ready:
+                return source
+
+            if source.is_error:
+                raise SourceProcessingError(source_id, source.status)
+
+            # Don't sleep longer than remaining time
+            remaining = timeout - (monotonic() - start)
+            if remaining <= 0:
+                raise SourceTimeoutError(source_id, timeout, last_status)
+
+            sleep_time = min(interval, remaining)
+            await asyncio.sleep(sleep_time)
+            interval = min(interval * backoff_factor, max_interval)
+
+    async def wait_for_sources(
+        self,
+        notebook_id: str,
+        source_ids: List[str],
+        timeout: float = 120.0,
+        **kwargs: Any,
+    ) -> List[Source]:
+        """Wait for multiple sources to become ready in parallel.
+
+        Args:
+            notebook_id: The notebook ID.
+            source_ids: List of source IDs to wait for.
+            timeout: Per-source timeout in seconds.
+            **kwargs: Additional arguments passed to wait_until_ready().
+
+        Returns:
+            List of ready Source objects in the same order as source_ids.
+
+        Raises:
+            SourceTimeoutError: If any source times out.
+            SourceProcessingError: If any source fails.
+            SourceNotFoundError: If any source is not found.
+
+        Example:
+            sources = [
+                await client.sources.add_url(nb_id, url1),
+                await client.sources.add_url(nb_id, url2),
+            ]
+            ready_sources = await client.sources.wait_for_sources(
+                nb_id, [s.id for s in sources]
+            )
+        """
+        tasks = [
+            self.wait_until_ready(notebook_id, sid, timeout=timeout, **kwargs)
+            for sid in source_ids
+        ]
+        return list(await asyncio.gather(*tasks))
+
+    async def add_url(
+        self,
+        notebook_id: str,
+        url: str,
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> Source:
         """Add a URL source to a notebook.
 
         Automatically detects YouTube URLs and uses the appropriate method.
@@ -153,9 +272,20 @@ class SourcesAPI:
         Args:
             notebook_id: The notebook ID.
             url: The URL to add.
+            wait: If True, wait for source to be ready before returning.
+            wait_timeout: Maximum seconds to wait if wait=True (default: 120).
 
         Returns:
-            The created Source object.
+            The created Source object. If wait=False, status may be PROCESSING.
+
+        Example:
+            # Add and wait for processing
+            source = await client.sources.add_url(nb_id, url, wait=True)
+
+            # Or add without waiting (for batch operations)
+            source = await client.sources.add_url(nb_id, url)
+            # ... add more sources ...
+            await client.sources.wait_for_sources(nb_id, [s.id for s in sources])
         """
         video_id = self._extract_youtube_video_id(url)
         if video_id:
@@ -164,18 +294,32 @@ class SourcesAPI:
             result = await self._add_url_source(notebook_id, url)
         if result is None:
             raise ValueError(f"Failed to add URL source: API returned no data for {url}")
-        return Source.from_api_response(result)
+        source = Source.from_api_response(result)
 
-    async def add_text(self, notebook_id: str, title: str, content: str) -> Source:
+        if wait:
+            return await self.wait_until_ready(notebook_id, source.id, timeout=wait_timeout)
+
+        return source
+
+    async def add_text(
+        self,
+        notebook_id: str,
+        title: str,
+        content: str,
+        wait: bool = False,
+        wait_timeout: float = 120.0,
+    ) -> Source:
         """Add a text source (copied text) to a notebook.
 
         Args:
             notebook_id: The notebook ID.
             title: Title for the source.
             content: Text content.
+            wait: If True, wait for source to be ready before returning.
+            wait_timeout: Maximum seconds to wait if wait=True (default: 120).
 
         Returns:
-            The created Source object.
+            The created Source object. If wait=False, status may be PROCESSING.
         """
         params = [
             [[None, [title, content], None, None, None, None, None, None]],
@@ -189,13 +333,20 @@ class SourcesAPI:
             params,
             source_path=f"/notebook/{notebook_id}",
         )
-        return Source.from_api_response(result)
+        source = Source.from_api_response(result)
+
+        if wait:
+            return await self.wait_until_ready(notebook_id, source.id, timeout=wait_timeout)
+
+        return source
 
     async def add_file(
         self,
         notebook_id: str,
         file_path: Union[str, Path],
         mime_type: Optional[str] = None,
+        wait: bool = False,
+        wait_timeout: float = 120.0,
     ) -> Source:
         """Add a file source to a notebook using resumable upload.
 
@@ -208,9 +359,11 @@ class SourcesAPI:
             notebook_id: The notebook ID.
             file_path: Path to the file to upload.
             mime_type: MIME type of the file (not used in current implementation).
+            wait: If True, wait for source to be ready before returning.
+            wait_timeout: Maximum seconds to wait if wait=True (default: 120).
 
         Returns:
-            The created Source object.
+            The created Source object. If wait=False, status may be PROCESSING.
 
         Supported file types:
             - PDF: application/pdf
@@ -242,7 +395,12 @@ class SourcesAPI:
         await self._upload_file_streaming(upload_url, file_path)
 
         # Return source with the ID we got from registration
-        return Source(id=source_id, title=filename, source_type="upload")
+        source = Source(id=source_id, title=filename, source_type="upload")
+
+        if wait:
+            return await self.wait_until_ready(notebook_id, source.id, timeout=wait_timeout)
+
+        return source
 
     async def add_drive(
         self,
@@ -250,6 +408,8 @@ class SourcesAPI:
         file_id: str,
         title: str,
         mime_type: str = "application/vnd.google-apps.document",
+        wait: bool = False,
+        wait_timeout: float = 120.0,
     ) -> Source:
         """Add a Google Drive document as a source.
 
@@ -262,9 +422,11 @@ class SourcesAPI:
                 - application/vnd.google-apps.presentation (Slides)
                 - application/vnd.google-apps.spreadsheet (Sheets)
                 - application/pdf (PDF files in Drive)
+            wait: If True, wait for source to be ready before returning.
+            wait_timeout: Maximum seconds to wait if wait=True (default: 120).
 
         Returns:
-            The created Source object.
+            The created Source object. If wait=False, status may be PROCESSING.
 
         Example:
             from notebooklm.types import DriveMimeType
@@ -274,6 +436,7 @@ class SourcesAPI:
                 file_id="1abc123xyz",
                 title="My Document",
                 mime_type=DriveMimeType.GOOGLE_DOC.value,
+                wait=True,  # Wait for processing
             )
         """
         # Drive source structure: [[file_id, mime_type, 1, title], null x9, 1]
@@ -294,7 +457,12 @@ class SourcesAPI:
             source_path=f"/notebook/{notebook_id}",
             allow_null=True,
         )
-        return Source.from_api_response(result)
+        source = Source.from_api_response(result)
+
+        if wait:
+            return await self.wait_until_ready(notebook_id, source.id, timeout=wait_timeout)
+
+        return source
 
     async def delete(self, notebook_id: str, source_id: str) -> bool:
         """Delete a source from a notebook.
