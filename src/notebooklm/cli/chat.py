@@ -82,17 +82,17 @@ def register_chat_commands(cli):
                     nb_id, question, conversation_id=effective_conv_id
                 )
 
-                if result.get("conversation_id"):
-                    set_current_conversation(result["conversation_id"])
+                if result.conversation_id:
+                    set_current_conversation(result.conversation_id)
 
                 console.print("[bold cyan]Answer:[/bold cyan]")
-                console.print(result["answer"])
-                if result.get("is_follow_up"):
+                console.print(result.answer)
+                if result.is_follow_up:
                     console.print(
-                        f"\n[dim]Conversation: {result['conversation_id']} (turn {result.get('turn_number', '?')})[/dim]"
+                        f"\n[dim]Conversation: {result.conversation_id} (turn {result.turn_number or '?'})[/dim]"
                     )
                 else:
-                    console.print(f"\n[dim]New conversation: {result['conversation_id']}[/dim]")
+                    console.print(f"\n[dim]New conversation: {result.conversation_id}[/dim]")
 
         return _run()
 

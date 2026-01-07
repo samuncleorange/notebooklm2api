@@ -127,7 +127,7 @@ def set_current_notebook(
 ):
     """Set the current notebook context."""
     CONTEXT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    data = {"notebook_id": notebook_id}
+    data: dict[str, str | bool] = {"notebook_id": notebook_id}
     if title:
         data["title"] = title
     if is_owner is not None:
@@ -396,7 +396,7 @@ def json_error_response(code: str, message: str) -> None:
 
 
 def get_artifact_type_display(
-    artifact_type: int, variant: int = None, report_subtype: str = None
+    artifact_type: int, variant: int | None = None, report_subtype: str | None = None
 ) -> str:
     """Get display string for artifact type.
 

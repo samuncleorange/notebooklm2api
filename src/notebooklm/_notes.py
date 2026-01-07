@@ -5,7 +5,7 @@ user-created notes in notebooks. Notes are distinct from artifacts -
 they are user-created content, not AI-generated.
 """
 
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from ._core import ClientCore
 from .rpc import RPCMethod
@@ -37,7 +37,7 @@ class NotesAPI:
         """
         self._core = core
 
-    async def list(self, notebook_id: str) -> list[Note]:
+    async def list(self, notebook_id: str) -> List[Note]:
         """List all text notes in the notebook.
 
         This excludes mind maps which are stored in the same internal structure
@@ -168,7 +168,7 @@ class NotesAPI:
         )
         return True
 
-    async def list_mind_maps(self, notebook_id: str) -> list[Any]:
+    async def list_mind_maps(self, notebook_id: str) -> List[Any]:
         """List all mind maps in the notebook.
 
         Mind maps are stored in the same internal structure as notes but
@@ -213,7 +213,7 @@ class NotesAPI:
     # Private Helpers
     # =========================================================================
 
-    async def _get_all_notes_and_mind_maps(self, notebook_id: str) -> list[Any]:
+    async def _get_all_notes_and_mind_maps(self, notebook_id: str) -> List[Any]:
         """Fetch all notes and mind maps from the API."""
         params = [notebook_id]
         result = await self._core.rpc_call(
@@ -240,7 +240,7 @@ class NotesAPI:
             return valid_notes
         return []
 
-    def _extract_content(self, item: list[Any]) -> Optional[str]:
+    def _extract_content(self, item: List[Any]) -> Optional[str]:
         """Extract content string from note/mind map item."""
         if len(item) <= 1:
             return None
@@ -251,7 +251,7 @@ class NotesAPI:
             return item[1][1]
         return None
 
-    def _parse_note(self, item: list[Any], notebook_id: str) -> Note:
+    def _parse_note(self, item: List[Any], notebook_id: str) -> Note:
         """Parse a raw note item into a Note object."""
         note_id = item[0] if len(item) > 0 else ""
 
