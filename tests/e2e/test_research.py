@@ -128,7 +128,7 @@ class TestResearchPoll:
     @pytest.mark.asyncio
     @pytest.mark.slow
     @pytest.mark.unstable  # Research behavior can be unpredictable
-    async def test_poll_until_complete(self, client, temp_notebook, rate_limit_aware):
+    async def test_poll_until_complete(self, client, temp_notebook):
         """Test polling until research completes."""
         # Start research
         start_result = await client.research.start(
@@ -188,7 +188,7 @@ class TestResearchImport:
     @pytest.mark.asyncio
     @pytest.mark.slow
     @pytest.mark.unstable  # Research behavior can be unpredictable
-    async def test_full_research_workflow(self, client, temp_notebook, rate_limit_aware):
+    async def test_full_research_workflow(self, client, temp_notebook):
         """Test complete research workflow: start -> poll -> import.
 
         This is a critical path test for the Research API, but marked unstable

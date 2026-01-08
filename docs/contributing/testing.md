@@ -79,9 +79,8 @@ pytest
 # Run E2E tests (requires setup above)
 pytest tests/e2e -m readonly        # Read-only tests only (~2 min)
 pytest tests/e2e -m "not slow"      # Skip generation tests (~2 min)
-pytest tests/e2e -m "not variants"  # Skip variant tests (~10-20 min)
-pytest tests/e2e -m variants        # Only variant tests (~20-30 min)
-pytest tests/e2e                    # ALL tests (~30-50 min)
+pytest tests/e2e                    # Default tests only, variants skipped (~5 min)
+pytest tests/e2e --include-variants # ALL tests including variants (~30 min)
 ```
 
 ## Test Structure
@@ -168,15 +167,29 @@ All markers defined in `pyproject.toml`:
 
 ### Variant Testing
 
-Each artifact type has multiple options. We test one default per type, mark variants with `@pytest.mark.variants`:
+Each artifact type has multiple options. To balance coverage and API quota:
+
+- **Audio** has two default tests: true defaults + one with `audio_format=BRIEF`
+- **Other types** use one non-default option (tests parameter encoding)
+- **Variants** test additional combinations (skipped by default)
+
+**Variants are skipped by default** to save API quota. Use `--include-variants` to run them:
+
+```bash
+pytest tests/e2e                    # Skips variants
+pytest tests/e2e --include-variants # Includes variants
+```
 
 ```python
 # Runs by default
 @pytest.mark.slow
 async def test_generate_audio_default(self, client, generation_notebook):
     result = await client.artifacts.generate_audio(generation_notebook.id)
+    assert result.task_id, "Expected non-empty task_id"
+    assert result.status in ("pending", "in_progress")
+    assert result.error is None
 
-# Only when requested: pytest -m variants
+# Skipped by default, runs with --include-variants
 @pytest.mark.slow
 @pytest.mark.variants
 async def test_generate_audio_brief(self, client, generation_notebook):
@@ -184,6 +197,9 @@ async def test_generate_audio_brief(self, client, generation_notebook):
         generation_notebook.id,
         audio_format=AudioFormat.BRIEF,
     )
+    assert result.task_id, "Expected non-empty task_id"
+    assert result.status in ("pending", "in_progress")
+    assert result.error is None
 ```
 
 ## E2E Fixtures Reference
@@ -266,7 +282,11 @@ class TestNewArtifact:
     @pytest.mark.slow
     async def test_generate_new_artifact_default(self, client, generation_notebook):
         result = await client.artifacts.generate_new(generation_notebook.id)
+        # Always verify the generation actually started
         assert result is not None
+        assert result.task_id, "Expected non-empty task_id"
+        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
+        assert result.error is None, f"Generation failed: {result.error}"
 
     @pytest.mark.asyncio
     @pytest.mark.slow
@@ -277,9 +297,16 @@ class TestNewArtifact:
             option=SomeOption.VALUE,
         )
         assert result is not None
+        assert result.task_id, "Expected non-empty task_id"
+        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
+        assert result.error is None, f"Generation failed: {result.error}"
 ```
 
 Note: Generation tests only need `client` and `generation_notebook`. Cleanup is handled automatically when the session-scoped notebook is deleted at session end.
+
+### Rate Limiting
+
+E2E tests automatically add a delay between `@pytest.mark.slow` tests to avoid rate limiting. This is handled by a pytest hook in `tests/e2e/conftest.py` - no action needed in individual tests.
 
 ## Troubleshooting
 
@@ -298,8 +325,17 @@ notebooklm list  # Should show your notebooks
 ### Tests hang or timeout
 
 - **Generation tests:** Can take 5-15 minutes for audio/video. This is normal.
-- **Rate limiting:** NotebookLM has undocumented rate limits. Add delays between test runs.
 - **CSRF token expired:** Run `notebooklm login` again.
+
+### Rate limiting / "Expected non-empty task_id" failures
+
+NotebookLM has undocumented rate limits (~6 generation requests per few minutes). If you see multiple tests failing with "Expected non-empty task_id":
+
+1. **Run fewer tests:** Use `pytest tests/e2e` (skips variants by default)
+2. **Wait and retry:** The API quota resets after a few minutes
+3. **Run single tests:** `pytest tests/e2e/test_generation.py::TestAudioGeneration::test_generate_audio_default`
+
+The test framework automatically adds delays between slow tests, but running many generation tests in sequence can still hit limits.
 
 ### "CSRF token invalid" or 403 errors
 
