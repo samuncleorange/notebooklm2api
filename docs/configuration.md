@@ -367,3 +367,23 @@ notebooklm list
 ### WSL
 
 Browser login opens in the Windows host browser. The storage file is saved in the WSL filesystem.
+
+### Headless Servers & Containers
+
+**Playwright is only required for the `notebooklm login` command.** All other operations use standard HTTP requests via `httpx`.
+
+This means you can run notebooklm on headless servers, Docker containers, and CI/CD environments without Playwright—just copy a valid `storage_state.json` or use `NOTEBOOKLM_AUTH_JSON`.
+
+```bash
+# On headless machine - no Playwright needed
+pip install notebooklm-py
+
+# Copy auth from local machine, or use env var
+scp ~/.notebooklm/storage_state.json user@server:~/.notebooklm/
+# OR
+export NOTEBOOKLM_AUTH_JSON='{"cookies": [...]}'
+
+# All commands work except 'login'
+notebooklm list
+notebooklm ask "Summarize the sources"
+```

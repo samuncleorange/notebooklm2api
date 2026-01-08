@@ -184,15 +184,16 @@ Some discovered RPC endpoints don't work as expected:
 
 ### Download Requirements
 
-Artifact downloads (audio, video, images) require Playwright because:
-- URLs use Google's `lh3.googleusercontent.com` domain
-- Cross-domain cookie authentication is complex
-- Standard HTTP clients can't handle the redirect chain
+Artifact downloads (audio, video, images) use `httpx` with cookies from your storage state. **Playwright is NOT required for downloads**—only for the initial `notebooklm login`.
 
-**Solution:** Ensure browser support is installed:
+If downloads fail with authentication errors:
+
+**Solution:** Ensure your authentication is valid:
 ```bash
-pip install "notebooklm-py[browser]"
-playwright install chromium
+# Re-authenticate if cookies have expired
+notebooklm login
+
+# Or copy a fresh storage_state.json from another machine
 ```
 
 ### URL Expiry

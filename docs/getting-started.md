@@ -25,7 +25,9 @@ pip install "notebooklm-py[browser]"
 playwright install chromium
 ```
 
-The browser extra installs Playwright, which is required for the initial authentication flow.
+The browser extra installs Playwright, which is **only required for `notebooklm login`**. All other commands and the Python API use standard HTTP requests via `httpx`.
+
+> **Headless/Remote Machines:** If you've already authenticated on another machine, copy `~/.notebooklm/storage_state.json` and use the basic installation without Playwright. See [Configuration - Headless Servers](configuration.md#headless-servers--containers).
 
 ### Development Installation
 
