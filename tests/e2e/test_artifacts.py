@@ -236,15 +236,22 @@ class TestArtifactMutations:
         ), f"Expected '{new_title}', got '{renamed_artifact.title}'"
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Quiz generation may timeout under load")
     async def test_wait_for_completion(self, client, temp_notebook):
-        """Test waiting for artifact generation to complete."""
-        # Generate a quiz (faster than audio/video)
-        result = await client.artifacts.generate_quiz(temp_notebook.id)
-        assert result is not None
-        assert result.task_id
+        """Test waiting for artifact generation to complete.
 
-        # Wait for completion with longer timeout for quizzes
+        Uses flashcards as they are more reliable than quizzes which
+        frequently hit rate limits.
+        """
+        result = await client.artifacts.generate_flashcards(temp_notebook.id)
+        assert result is not None
+
+        # Skip if rate limited
+        if result.is_rate_limited:
+            pytest.skip("Rate limited by API")
+
+        assert result.task_id, f"Generation should return a task_id: {result.error}"
+
+        # Wait for completion
         final_status = await client.artifacts.wait_for_completion(
             temp_notebook.id,
             result.task_id,
@@ -253,6 +260,6 @@ class TestArtifactMutations:
             timeout=120.0,
         )
 
-        # Should complete or fail (not timeout for quiz)
+        # Should complete or fail (not timeout)
         assert final_status is not None
         assert final_status.is_complete or final_status.is_failed
