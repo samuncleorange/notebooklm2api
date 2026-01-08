@@ -10,7 +10,7 @@ class TestNotesList:
     """Test listing notes."""
 
     @pytest.mark.asyncio
-    @pytest.mark.golden
+    @pytest.mark.read_only
     async def test_list_notes(self, client, test_notebook_id):
         """List notes in golden notebook - read-only."""
         notes = await client.notes.list(test_notebook_id)
@@ -23,7 +23,7 @@ class TestNotesGet:
     """Test getting individual notes."""
 
     @pytest.mark.asyncio
-    @pytest.mark.golden
+    @pytest.mark.read_only
     async def test_get_note(self, client, test_notebook_id):
         """Get a specific note from golden notebook - read-only."""
         notes = await client.notes.list(test_notebook_id)
@@ -103,7 +103,7 @@ class TestMindMaps:
     """Test mind map operations."""
 
     @pytest.mark.asyncio
-    @pytest.mark.golden
+    @pytest.mark.read_only
     async def test_list_mind_maps(self, client, test_notebook_id):
         """List mind maps in golden notebook - read-only."""
         mind_maps = await client.notes.list_mind_maps(test_notebook_id)

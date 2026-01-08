@@ -62,7 +62,7 @@ markers = [
     "e2e: end-to-end tests requiring authentication",
     "slow: slow tests (artifact generation, 15+ min)",
     "exhaustive: full coverage tests (deselect to minimize quota usage)",
-    "golden: tests using golden notebook (read-only)",
+    "read_only: tests that only read data (no mutations)",
     "mutation: tests that modify and revert golden data",
     "stable: tests that consistently pass",
     "unstable: tests that may fail due to rate limits or API changes",

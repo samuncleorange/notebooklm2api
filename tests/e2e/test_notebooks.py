@@ -92,7 +92,7 @@ class TestNotebookSummary:
     """Tests for notebook summary operations."""
 
     @pytest.mark.asyncio
-    @pytest.mark.golden
+    @pytest.mark.read_only
     async def test_get_summary(self, client, test_notebook_id):
         """Test getting notebook summary."""
         summary = await client.notebooks.get_summary(test_notebook_id)
@@ -100,7 +100,7 @@ class TestNotebookSummary:
         assert isinstance(summary, str)
 
     @pytest.mark.asyncio
-    @pytest.mark.golden
+    @pytest.mark.read_only
     async def test_get_raw(self, client, test_notebook_id):
         """Test getting raw notebook data."""
         raw_data = await client.notebooks.get_raw(test_notebook_id)
@@ -141,7 +141,7 @@ class TestNotebookAnalytics:
     """Tests for notebook analytics operations."""
 
     @pytest.mark.asyncio
-    @pytest.mark.golden
+    @pytest.mark.read_only
     @pytest.mark.xfail(reason="Analytics RPC may not be available for all notebooks")
     async def test_get_analytics(self, client, test_notebook_id):
         """Test getting notebook analytics."""

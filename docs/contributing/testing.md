@@ -14,7 +14,7 @@ pytest tests/e2e -m e2e
 
 # Run specific marker combinations
 pytest tests/e2e -m "e2e and not slow"      # Quick E2E validation
-pytest tests/e2e -m "e2e and golden"        # Read-only tests only
+pytest tests/e2e -m "e2e and read_only"     # Read-only tests only
 pytest tests/e2e -m "e2e and not exhaustive" # Skip variant tests
 ```
 
@@ -56,7 +56,7 @@ Google's shared demo notebook: `19bde485-a9c1-4809-8884-e872b2b67b44`
 Pre-populated with sources and artifacts. You don't own it, so you can only read.
 
 ```python
-@pytest.mark.golden
+@pytest.mark.read_only
 async def test_list_artifacts(self, client, test_notebook_id):
     artifacts = await client.artifacts.list(test_notebook_id)
     assert isinstance(artifacts, list)
@@ -95,7 +95,7 @@ All markers defined in `pyproject.toml`:
 | `e2e` | Requires real API (excluded by default via `--ignore=tests/e2e`) |
 | `slow` | Takes 30+ seconds (generation tests) |
 | `exhaustive` | Parameter variant tests (exclude to save quota) |
-| `golden` | Uses golden notebook (read-only, safe) |
+| `read_only` | Tests that only read data (no mutations) |
 | `stable` | Consistently passes |
 | `unstable` | May fail due to rate limits or API changes |
 | `mutation` | Modifies and reverts golden data |
@@ -215,7 +215,7 @@ Need network?
 ├── Mocked → tests/integration/
 └── Real API → tests/e2e/
     └── What notebook?
-        ├── Read-only → test_notebook_id + @pytest.mark.golden
+        ├── Read-only → test_notebook_id + @pytest.mark.read_only
         ├── CRUD → temp_notebook
         └── Generation → generation_notebook + @pytest.mark.slow
             └── Variant? → add @pytest.mark.exhaustive
