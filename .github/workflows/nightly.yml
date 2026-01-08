@@ -55,6 +55,8 @@ jobs:
         echo "$NOTEBOOKLM_STORAGE_STATE" > ~/.notebooklm/storage_state.json
 
     - name: Run E2E tests
+      env:
+        NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID: ${{ secrets.NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID }}
       run: pytest tests/e2e -m e2e -v --tb=short
 
     - name: Clean up authentication

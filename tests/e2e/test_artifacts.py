@@ -19,30 +19,30 @@ class TestArtifactRetrieval:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_artifacts(self, client, test_notebook_id):
+    async def test_list_artifacts(self, client, read_only_notebook_id):
         """Read-only test - lists existing artifacts."""
-        artifacts = await client.artifacts.list(test_notebook_id)
+        artifacts = await client.artifacts.list(read_only_notebook_id)
         assert isinstance(artifacts, list)
         assert all(isinstance(art, Artifact) for art in artifacts)
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_get_artifact(self, client, test_notebook_id):
+    async def test_get_artifact(self, client, read_only_notebook_id):
         """Test getting a specific artifact by ID."""
-        artifacts = await client.artifacts.list(test_notebook_id)
+        artifacts = await client.artifacts.list(read_only_notebook_id)
         if not artifacts:
             pytest.skip("No artifacts available to get")
 
-        artifact = await client.artifacts.get(test_notebook_id, artifacts[0].id)
+        artifact = await client.artifacts.get(read_only_notebook_id, artifacts[0].id)
         assert artifact is not None
         assert isinstance(artifact, Artifact)
         assert artifact.id == artifacts[0].id
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_get_artifact_not_found(self, client, test_notebook_id):
+    async def test_get_artifact_not_found(self, client, read_only_notebook_id):
         """Test getting a non-existent artifact returns None."""
-        artifact = await client.artifacts.get(test_notebook_id, "nonexistent_artifact_id")
+        artifact = await client.artifacts.get(read_only_notebook_id, "nonexistent_artifact_id")
         assert artifact is None
 
 
@@ -52,9 +52,9 @@ class TestArtifactTypeSpecificLists:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_audio(self, client, test_notebook_id):
+    async def test_list_audio(self, client, read_only_notebook_id):
         """Test listing audio artifacts."""
-        artifacts = await client.artifacts.list_audio(test_notebook_id)
+        artifacts = await client.artifacts.list_audio(read_only_notebook_id)
         assert isinstance(artifacts, list)
         # All returned should be audio type (1)
         for art in artifacts:
@@ -62,9 +62,9 @@ class TestArtifactTypeSpecificLists:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_video(self, client, test_notebook_id):
+    async def test_list_video(self, client, read_only_notebook_id):
         """Test listing video artifacts."""
-        artifacts = await client.artifacts.list_video(test_notebook_id)
+        artifacts = await client.artifacts.list_video(read_only_notebook_id)
         assert isinstance(artifacts, list)
         # All returned should be video type (3)
         for art in artifacts:
@@ -72,9 +72,9 @@ class TestArtifactTypeSpecificLists:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_reports(self, client, test_notebook_id):
+    async def test_list_reports(self, client, read_only_notebook_id):
         """Test listing report artifacts."""
-        artifacts = await client.artifacts.list_reports(test_notebook_id)
+        artifacts = await client.artifacts.list_reports(read_only_notebook_id)
         assert isinstance(artifacts, list)
         # All returned should be report type (2)
         for art in artifacts:
@@ -82,9 +82,9 @@ class TestArtifactTypeSpecificLists:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_quizzes(self, client, test_notebook_id):
+    async def test_list_quizzes(self, client, read_only_notebook_id):
         """Test listing quiz artifacts."""
-        artifacts = await client.artifacts.list_quizzes(test_notebook_id)
+        artifacts = await client.artifacts.list_quizzes(read_only_notebook_id)
         assert isinstance(artifacts, list)
         # All returned should be quizzes (type 4, variant 2)
         for art in artifacts:
@@ -93,9 +93,9 @@ class TestArtifactTypeSpecificLists:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_flashcards(self, client, test_notebook_id):
+    async def test_list_flashcards(self, client, read_only_notebook_id):
         """Test listing flashcard artifacts."""
-        artifacts = await client.artifacts.list_flashcards(test_notebook_id)
+        artifacts = await client.artifacts.list_flashcards(read_only_notebook_id)
         assert isinstance(artifacts, list)
         # All returned should be flashcards (type 4, variant 1)
         for art in artifacts:
@@ -104,9 +104,9 @@ class TestArtifactTypeSpecificLists:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_infographics(self, client, test_notebook_id):
+    async def test_list_infographics(self, client, read_only_notebook_id):
         """Test listing infographic artifacts."""
-        artifacts = await client.artifacts.list_infographics(test_notebook_id)
+        artifacts = await client.artifacts.list_infographics(read_only_notebook_id)
         assert isinstance(artifacts, list)
         # All returned should be infographic type (7)
         for art in artifacts:
@@ -114,9 +114,9 @@ class TestArtifactTypeSpecificLists:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_slide_decks(self, client, test_notebook_id):
+    async def test_list_slide_decks(self, client, read_only_notebook_id):
         """Test listing slide deck artifacts."""
-        artifacts = await client.artifacts.list_slide_decks(test_notebook_id)
+        artifacts = await client.artifacts.list_slide_decks(read_only_notebook_id)
         assert isinstance(artifacts, list)
         # All returned should be slide deck type (8)
         for art in artifacts:
@@ -124,9 +124,9 @@ class TestArtifactTypeSpecificLists:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_data_tables(self, client, test_notebook_id):
+    async def test_list_data_tables(self, client, read_only_notebook_id):
         """Test listing data table artifacts."""
-        artifacts = await client.artifacts.list_data_tables(test_notebook_id)
+        artifacts = await client.artifacts.list_data_tables(read_only_notebook_id)
         assert isinstance(artifacts, list)
         # All returned should be data table type (9)
         for art in artifacts:
@@ -139,9 +139,9 @@ class TestReportSuggestions:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_suggest_reports(self, client, test_notebook_id):
+    async def test_suggest_reports(self, client, read_only_notebook_id):
         """Read-only test - gets suggestions without generating."""
-        suggestions = await client.artifacts.suggest_reports(test_notebook_id)
+        suggestions = await client.artifacts.suggest_reports(read_only_notebook_id)
 
         assert isinstance(suggestions, list)
         if suggestions:

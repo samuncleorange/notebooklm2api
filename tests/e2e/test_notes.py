@@ -10,9 +10,9 @@ class TestNotesList:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_notes(self, client, test_notebook_id):
+    async def test_list_notes(self, client, read_only_notebook_id):
         """List notes in test notebook - read-only."""
-        notes = await client.notes.list(test_notebook_id)
+        notes = await client.notes.list(read_only_notebook_id)
         assert isinstance(notes, list)
 
 
@@ -22,20 +22,20 @@ class TestNotesGet:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_get_note(self, client, test_notebook_id):
+    async def test_get_note(self, client, read_only_notebook_id):
         """Get a specific note from test notebook - read-only."""
-        notes = await client.notes.list(test_notebook_id)
+        notes = await client.notes.list(read_only_notebook_id)
         if not notes:
             pytest.skip("No notes available in test notebook")
 
-        note = await client.notes.get(test_notebook_id, notes[0].id)
+        note = await client.notes.get(read_only_notebook_id, notes[0].id)
         assert note is not None
         assert note.id == notes[0].id
 
     @pytest.mark.asyncio
-    async def test_get_note_not_found(self, client, test_notebook_id):
+    async def test_get_note_not_found(self, client, read_only_notebook_id):
         """Test getting a non-existent note returns None."""
-        note = await client.notes.get(test_notebook_id, "nonexistent_note_id")
+        note = await client.notes.get(read_only_notebook_id, "nonexistent_note_id")
         assert note is None
 
 
@@ -100,7 +100,7 @@ class TestMindMaps:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_list_mind_maps(self, client, test_notebook_id):
+    async def test_list_mind_maps(self, client, read_only_notebook_id):
         """List mind maps in test notebook - read-only."""
-        mind_maps = await client.notes.list_mind_maps(test_notebook_id)
+        mind_maps = await client.notes.list_mind_maps(read_only_notebook_id)
         assert isinstance(mind_maps, list)

@@ -35,7 +35,7 @@ def is_mp4(path: str) -> bool:
 class TestDownloadAudio:
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_download_audio(self, client, test_notebook_id):
+    async def test_download_audio(self, client, read_only_notebook_id):
         """Downloads existing audio artifact - read-only.
 
         Note: NotebookLM serves audio in MP4 container format (MPEG-DASH),
@@ -44,7 +44,7 @@ class TestDownloadAudio:
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = os.path.join(tmpdir, "audio.mp4")
             try:
-                result = await client.artifacts.download_audio(test_notebook_id, output_path)
+                result = await client.artifacts.download_audio(read_only_notebook_id, output_path)
                 assert result == output_path
                 assert os.path.exists(output_path)
                 assert os.path.getsize(output_path) > 0
@@ -59,12 +59,12 @@ class TestDownloadAudio:
 class TestDownloadVideo:
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_download_video(self, client, test_notebook_id):
+    async def test_download_video(self, client, read_only_notebook_id):
         """Downloads existing video artifact - read-only."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = os.path.join(tmpdir, "video.mp4")
             try:
-                result = await client.artifacts.download_video(test_notebook_id, output_path)
+                result = await client.artifacts.download_video(read_only_notebook_id, output_path)
                 assert result == output_path
                 assert os.path.exists(output_path)
                 assert os.path.getsize(output_path) > 0
@@ -79,13 +79,13 @@ class TestDownloadVideo:
 class TestDownloadInfographic:
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_download_infographic(self, client, test_notebook_id):
+    async def test_download_infographic(self, client, read_only_notebook_id):
         """Downloads existing infographic - read-only."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = os.path.join(tmpdir, "infographic.png")
             try:
                 result = await client.artifacts.download_infographic(
-                    test_notebook_id, output_path
+                    read_only_notebook_id, output_path
                 )
                 assert result == output_path
                 assert os.path.exists(output_path)
@@ -101,12 +101,12 @@ class TestDownloadInfographic:
 class TestDownloadSlideDeck:
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_download_slide_deck(self, client, test_notebook_id):
+    async def test_download_slide_deck(self, client, read_only_notebook_id):
         """Downloads existing slide deck as PDF - read-only."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_path = os.path.join(tmpdir, "slides.pdf")
             try:
-                result = await client.artifacts.download_slide_deck(test_notebook_id, output_path)
+                result = await client.artifacts.download_slide_deck(read_only_notebook_id, output_path)
                 assert result == output_path
                 assert os.path.exists(output_path)
                 assert os.path.getsize(output_path) > 0
@@ -121,15 +121,15 @@ class TestDownloadSlideDeck:
 class TestExportArtifact:
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_export_artifact(self, client, test_notebook_id):
+    async def test_export_artifact(self, client, read_only_notebook_id):
         """Exports existing artifact - read-only."""
-        artifacts = await client.artifacts.list(test_notebook_id)
+        artifacts = await client.artifacts.list(read_only_notebook_id)
         if not artifacts or len(artifacts) == 0:
             pytest.skip("No artifacts available to export")
 
         artifact_id = artifacts[0].id
         try:
-            result = await client.artifacts.export(test_notebook_id, artifact_id)
+            result = await client.artifacts.export(read_only_notebook_id, artifact_id)
             assert result is not None or result is None
         except Exception:
             pytest.skip("Export not available for this artifact type")

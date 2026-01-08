@@ -47,65 +47,60 @@ class TestSourceOperations:
         assert source.title is not None
 
     @pytest.mark.asyncio
-    async def test_list_and_rename_source(self, client, test_notebook_id):
-        # List sources
-        sources = await client.sources.list(test_notebook_id)
+    async def test_rename_source(self, client, temp_notebook):
+        """Test renaming a source in an owned notebook."""
+        # List sources (temp_notebook has one source from fixture)
+        sources = await client.sources.list(temp_notebook.id)
         assert isinstance(sources, list)
-
-        if not sources:
-            pytest.skip("No sources available to rename")
+        assert len(sources) > 0, "temp_notebook should have at least one source"
 
         # Get first source
         source = sources[0]
         assert isinstance(source, Source)
-        original_title = source.title
 
         # Rename
         renamed = await client.sources.rename(
-            test_notebook_id, source.id, "Renamed Test Source"
+            temp_notebook.id, source.id, "Renamed Test Source"
         )
         assert isinstance(renamed, Source)
         assert renamed.title == "Renamed Test Source"
-
-        # Restore original title
-        if original_title:
-            await client.sources.rename(test_notebook_id, source.id, original_title)
+        # No need to restore - temp_notebook is deleted after test
 
 
 @requires_auth
 class TestSourceRetrieval:
     @pytest.mark.asyncio
-    async def test_list_sources(self, client, test_notebook_id):
-        sources = await client.sources.list(test_notebook_id)
+    async def test_list_sources(self, client, read_only_notebook_id):
+        sources = await client.sources.list(read_only_notebook_id)
         assert isinstance(sources, list)
         assert all(isinstance(src, Source) for src in sources)
 
     @pytest.mark.asyncio
-    async def test_get_source(self, client, test_notebook_id):
+    async def test_get_source(self, client, read_only_notebook_id):
         """Test getting a specific source by ID."""
-        sources = await client.sources.list(test_notebook_id)
+        sources = await client.sources.list(read_only_notebook_id)
         if not sources:
             pytest.skip("No sources available to get")
 
-        source = await client.sources.get(test_notebook_id, sources[0].id)
+        source = await client.sources.get(read_only_notebook_id, sources[0].id)
         assert source is not None
         assert isinstance(source, Source)
         assert source.id == sources[0].id
 
     @pytest.mark.asyncio
-    async def test_get_source_not_found(self, client, test_notebook_id):
+    async def test_get_source_not_found(self, client, read_only_notebook_id):
         """Test getting a non-existent source returns None."""
-        source = await client.sources.get(test_notebook_id, "nonexistent_source_id")
+        source = await client.sources.get(read_only_notebook_id, "nonexistent_source_id")
         assert source is None
 
     @pytest.mark.asyncio
-    async def test_get_guide(self, client, test_notebook_id):
+    async def test_get_guide(self, client, read_only_notebook_id):
         """Test getting source guide/summary."""
-        sources = await client.sources.list(test_notebook_id)
+        sources = await client.sources.list(read_only_notebook_id)
         if not sources:
             pytest.skip("No sources available for guide")
 
-        guide = await client.sources.get_guide(test_notebook_id, sources[0].id)
+        guide = await client.sources.get_guide(read_only_notebook_id, sources[0].id)
         # get_guide returns dict with summary and keywords
         assert isinstance(guide, dict)
         assert "summary" in guide
@@ -174,9 +169,9 @@ class TestSourceStatus:
     """Tests for source status and readiness polling."""
 
     @pytest.mark.asyncio
-    async def test_source_has_status_field(self, client, test_notebook_id):
+    async def test_source_has_status_field(self, client, read_only_notebook_id):
         """Test that sources have a status field."""
-        sources = await client.sources.list(test_notebook_id)
+        sources = await client.sources.list(read_only_notebook_id)
         if not sources:
             pytest.skip("No sources available to check status")
 
@@ -189,9 +184,9 @@ class TestSourceStatus:
         )
 
     @pytest.mark.asyncio
-    async def test_source_is_ready_property(self, client, test_notebook_id):
+    async def test_source_is_ready_property(self, client, read_only_notebook_id):
         """Test that is_ready property works correctly."""
-        sources = await client.sources.list(test_notebook_id)
+        sources = await client.sources.list(read_only_notebook_id)
         if not sources:
             pytest.skip("No sources available to check")
 

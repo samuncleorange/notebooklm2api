@@ -4,6 +4,7 @@ import os
 import warnings
 import pytest
 import httpx
+from pathlib import Path
 from typing import AsyncGenerator
 
 # Load .env file if python-dotenv is available
@@ -17,9 +18,9 @@ from notebooklm.auth import (
     load_auth_from_storage,
     extract_csrf_from_html,
     extract_session_id_from_html,
-    DEFAULT_STORAGE_PATH,
     AuthTokens,
 )
+from notebooklm.paths import get_home_dir
 from notebooklm import NotebookLMClient
 
 
@@ -67,7 +68,7 @@ def has_auth() -> bool:
 
 requires_auth = pytest.mark.skipif(
     not has_auth(),
-    reason=f"Requires authentication at {DEFAULT_STORAGE_PATH}",
+    reason="Requires NotebookLM authentication (run 'notebooklm login')",
 )
 
 
@@ -138,23 +139,29 @@ async def client(auth_tokens) -> AsyncGenerator[NotebookLMClient, None]:
 
 
 @pytest.fixture
-def test_notebook_id():
-    """Get notebook ID from NOTEBOOKLM_TEST_NOTEBOOK_ID env var.
+def read_only_notebook_id():
+    """Get notebook ID from NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID env var.
 
     This env var is REQUIRED for E2E tests. You must create your own
-    test notebook with sources and artifacts. See docs/contributing/testing.md.
+    read-only test notebook with sources and artifacts.
+
+    This fixture provides a notebook ID for READ-ONLY tests - tests that
+    list, get, or query but do NOT modify the notebook. Do not use this
+    fixture for tests that create, update, or delete resources.
+
+    See docs/contributing/testing.md for setup instructions.
     """
-    notebook_id = os.environ.get("NOTEBOOKLM_TEST_NOTEBOOK_ID")
+    notebook_id = os.environ.get("NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID")
     if not notebook_id:
         pytest.exit(
-            "\n\nERROR: NOTEBOOKLM_TEST_NOTEBOOK_ID environment variable is not set.\n\n"
+            "\n\nERROR: NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID environment variable is not set.\n\n"
             "E2E tests require YOUR OWN test notebook with content.\n\n"
             "Setup instructions:\n"
             "  1. Create a notebook at https://notebooklm.google.com\n"
             "  2. Add sources (text, URL, PDF, etc.)\n"
             "  3. Generate some artifacts (audio, quiz, etc.)\n"
             "  4. Copy notebook ID from URL and run:\n"
-            "     export NOTEBOOKLM_TEST_NOTEBOOK_ID='your-notebook-id'\n\n"
+            "     export NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID='your-notebook-id'\n\n"
             "See docs/contributing/testing.md for details.\n",
             returncode=1,
         )
@@ -180,42 +187,6 @@ async def cleanup_notebooks(created_notebooks, auth_tokens):
                     warnings.warn(f"Failed to cleanup notebook {nb_id}: {e}")
 
 
-@pytest.fixture
-def created_sources():
-    sources = []
-    yield sources
-
-
-@pytest.fixture
-async def cleanup_sources(created_sources, test_notebook_id, auth_tokens):
-    """Cleanup created sources after test."""
-    yield
-    if created_sources:
-        async with NotebookLMClient(auth_tokens) as client:
-            for src_id in created_sources:
-                try:
-                    await client.sources.delete(test_notebook_id, src_id)
-                except Exception as e:
-                    warnings.warn(f"Failed to cleanup source {src_id}: {e}")
-
-
-@pytest.fixture
-def created_artifacts():
-    artifacts = []
-    yield artifacts
-
-
-@pytest.fixture
-async def cleanup_artifacts(created_artifacts, test_notebook_id, auth_tokens):
-    """Cleanup created artifacts after test."""
-    yield
-    if created_artifacts:
-        async with NotebookLMClient(auth_tokens) as client:
-            for art_id in created_artifacts:
-                try:
-                    await client.artifacts.delete(test_notebook_id, art_id)
-                except Exception as e:
-                    warnings.warn(f"Failed to cleanup artifact {art_id}: {e}")
 
 
 # =============================================================================
@@ -253,26 +224,45 @@ async def temp_notebook(client, created_notebooks, cleanup_notebooks):
 
 
 # =============================================================================
-# Test Infrastructure Fixtures (for tiered testing)
+# Generation Notebook Fixtures
 # =============================================================================
 
+# File to store auto-created generation notebook ID
+GENERATION_NOTEBOOK_ID_FILE = "generation_notebook_id"
 
-@pytest.fixture
-async def generation_notebook(client, created_notebooks, cleanup_notebooks):
-    """Notebook with content for generation tests.
 
-    Creates a notebook with test content for artifact generation.
-    Uses function scope to work with pytest-asyncio's default event loop scope.
-    Automatically cleaned up after each test via cleanup_notebooks fixture.
+def _get_generation_notebook_id_path() -> Path:
+    """Get the path to the generation notebook ID file."""
+    return get_home_dir() / GENERATION_NOTEBOOK_ID_FILE
 
-    Use for: artifact generation (audio, video, quiz, etc.)
-    Do NOT use for: CRUD tests (use temp_notebook instead)
+
+def _load_stored_generation_notebook_id() -> str | None:
+    """Load generation notebook ID from stored file."""
+    path = _get_generation_notebook_id_path()
+    if path.exists():
+        try:
+            return path.read_text().strip()
+        except Exception:
+            return None
+    return None
+
+
+def _save_generation_notebook_id(notebook_id: str) -> None:
+    """Save generation notebook ID to file for future runs."""
+    path = _get_generation_notebook_id_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(notebook_id)
+
+
+async def _create_generation_notebook(client: NotebookLMClient) -> str:
+    """Create a new generation notebook with content.
+
+    Returns the notebook ID.
     """
     import asyncio
     from uuid import uuid4
 
-    notebook = await client.notebooks.create(f"GenTest-{uuid4().hex[:8]}")
-    created_notebooks.append(notebook.id)
+    notebook = await client.notebooks.create(f"E2E-Generation-{uuid4().hex[:8]}")
 
     # Add a text source so the notebook has content for operations
     await client.sources.add_text(
@@ -291,6 +281,129 @@ async def generation_notebook(client, created_notebooks, cleanup_notebooks):
     # Delay to ensure source is processed
     await asyncio.sleep(SOURCE_PROCESSING_DELAY)
 
-    return notebook
+    return notebook.id
+
+
+async def _cleanup_generation_notebook(client: NotebookLMClient, notebook_id: str) -> None:
+    """Clean up existing artifacts and notes from generation notebook.
+
+    This runs BEFORE tests to ensure a clean starting state.
+    """
+    # Delete all artifacts
+    try:
+        artifacts = await client.artifacts.list(notebook_id)
+        for artifact in artifacts:
+            try:
+                await client.artifacts.delete(notebook_id, artifact.id)
+            except Exception:
+                pass  # Ignore individual delete failures
+    except Exception:
+        pass  # Ignore list failures
+
+    # Delete all notes (except pinned system notes)
+    try:
+        notes = await client.notes.list(notebook_id)
+        for note in notes:
+            # Skip if no id or if it's a pinned system note
+            if note.id and not getattr(note, 'pinned', False):
+                try:
+                    await client.notes.delete(notebook_id, note.id)
+                except Exception:
+                    pass  # Ignore individual delete failures
+    except Exception:
+        pass  # Ignore list failures
+
+
+def _is_ci_environment() -> bool:
+    """Check if running in CI environment.
+
+    Detects common CI systems: GitHub Actions, GitLab CI, CircleCI, Travis CI,
+    Azure Pipelines, and others that set CI=true/1/yes.
+    """
+    ci_value = os.environ.get("CI", "").lower()
+    return ci_value in ("true", "1", "yes")
+
+
+def _delete_stored_generation_notebook_id() -> None:
+    """Delete the stored generation notebook ID file."""
+    path = _get_generation_notebook_id_path()
+    if path.exists():
+        try:
+            path.unlink()
+        except Exception:
+            pass
+
+
+async def _verify_notebook_exists(client, notebook_id: str) -> bool:
+    """Verify a notebook exists and is accessible."""
+    try:
+        nb = await client.notebooks.get(notebook_id)
+        return nb is not None
+    except Exception:
+        return False
+
+
+@pytest.fixture
+async def generation_notebook_id(client):
+    """Get or create a notebook for generation tests.
+
+    This fixture uses a hybrid approach:
+    1. Check NOTEBOOKLM_GENERATION_NOTEBOOK_ID env var
+    2. If not set, check for stored ID in NOTEBOOKLM_HOME/generation_notebook_id
+    3. If not found, auto-create a notebook and store its ID
+
+    All notebook IDs (env var or stored) are verified to exist before use.
+
+    In CI environments (CI=true/1/yes), auto-created notebooks are deleted after tests.
+    In local environments, the notebook persists across runs for verification.
+
+    Artifacts and notes are cleaned up BEFORE tests to ensure clean state.
+    Sources are NOT cleaned (generation tests need them).
+
+    Use for: artifact generation tests (audio, video, quiz, etc.)
+    Do NOT use for: CRUD tests (use temp_notebook instead)
+    """
+    auto_created = False
+    source = None  # Track where notebook ID came from for debugging
+
+    # Priority 1: Environment variable
+    notebook_id = os.environ.get("NOTEBOOKLM_GENERATION_NOTEBOOK_ID")
+    if notebook_id:
+        source = "env var"
+
+    # Priority 2: Stored ID file
+    if not notebook_id:
+        notebook_id = _load_stored_generation_notebook_id()
+        if notebook_id:
+            source = "stored file"
+
+    # Verify notebook exists (for both env var AND stored IDs)
+    if notebook_id:
+        if not await _verify_notebook_exists(client, notebook_id):
+            warnings.warn(
+                f"Generation notebook {notebook_id} from {source} no longer exists, "
+                "creating new one"
+            )
+            notebook_id = None
+
+    # Priority 3: Auto-create
+    if not notebook_id:
+        notebook_id = await _create_generation_notebook(client)
+        _save_generation_notebook_id(notebook_id)
+        auto_created = True
+
+    # Clean up artifacts and notes before tests
+    await _cleanup_generation_notebook(client, notebook_id)
+
+    yield notebook_id
+
+    # Cleanup: In CI, delete auto-created notebooks to avoid orphans
+    if auto_created and _is_ci_environment():
+        # Delete stored file first (idempotent), then attempt notebook delete (best effort)
+        _delete_stored_generation_notebook_id()
+        try:
+            await client.notebooks.delete(notebook_id)
+        except Exception as e:
+            warnings.warn(f"Failed to delete generation notebook {notebook_id}: {e}")
 
 

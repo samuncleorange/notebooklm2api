@@ -30,9 +30,9 @@ Verify with:
 notebooklm status
 ```
 
-### 3. Create Your Test Notebook (REQUIRED)
+### 3. Create Your Read-Only Test Notebook (REQUIRED)
 
-**You MUST create a personal test notebook** with content. Tests will exit with an error if not configured.
+**You MUST create a personal test notebook** for read-only tests. Tests will exit with an error if not configured.
 
 1. Go to [NotebookLM](https://notebooklm.google.com)
 2. Create a new notebook (e.g., "E2E Test Notebook")
@@ -61,8 +61,10 @@ cp .env.example .env
 
 Or set the environment variable directly:
 ```bash
-export NOTEBOOKLM_TEST_NOTEBOOK_ID="your-notebook-id-here"
+export NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID="your-notebook-id-here"
 ```
+
+**Note:** The generation notebook is auto-created on first run and stored in `~/.notebooklm/generation_notebook_id`. You don't need to configure it manually.
 
 ### 4. Verify Setup
 
@@ -136,13 +138,13 @@ tests/
 
 | I want to... | Use | Why |
 |--------------|-----|-----|
-| List/download existing artifacts | `test_notebook_id` | Your notebook with pre-made content |
+| List/download existing artifacts | `read_only_notebook_id` | Your notebook with pre-made content |
 | Add/delete sources or notes | `temp_notebook` | Isolated, auto-cleanup, has content |
-| Generate audio/video/quiz | `generation_notebook` | Writable, has content, auto-cleanup |
+| Generate audio/video/quiz | `generation_notebook_id` | Auto-created, has content, CI-aware cleanup |
 
-### `test_notebook_id` (Your Test Notebook - REQUIRED)
+### `read_only_notebook_id` (Your Test Notebook - REQUIRED)
 
-Returns `NOTEBOOKLM_TEST_NOTEBOOK_ID` env var. **Tests will exit with an error if not set.**
+Returns `NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID` env var. **Tests will exit with an error if not set.**
 
 Your notebook must have:
 - Multiple sources (text, URL, etc.)
@@ -150,8 +152,8 @@ Your notebook must have:
 
 ```python
 @pytest.mark.readonly
-async def test_list_artifacts(self, client, test_notebook_id):
-    artifacts = await client.artifacts.list(test_notebook_id)
+async def test_list_artifacts(self, client, read_only_notebook_id):
+    artifacts = await client.artifacts.list(read_only_notebook_id)
     assert isinstance(artifacts, list)
 ```
 
@@ -165,20 +167,22 @@ async def test_add_source(self, client, temp_notebook):
     assert source.id is not None
 ```
 
-### `generation_notebook`
+### `generation_notebook_id`
 
-Notebook with content for generation tests. Automatically deleted after each test.
+Notebook for generation tests. Auto-created on first run if not configured via env var.
 
 ```python
-async def test_generate_quiz(self, client, generation_notebook):
-    result = await client.artifacts.generate_quiz(generation_notebook.id)
+async def test_generate_quiz(self, client, generation_notebook_id):
+    result = await client.artifacts.generate_quiz(generation_notebook_id)
     assert result is not None
     assert result.task_id  # Generation returns immediately with task_id
 ```
 
-**Why not readonly?** You can't generate on notebooks you don't own.
-**Why not temp_notebook?** Both work similarly now - use `generation_notebook` for generation tests by convention.
-**Cleanup:** Automatic - notebook deleted after each test.
+**Lifecycle:**
+- Auto-created if `NOTEBOOKLM_GENERATION_NOTEBOOK_ID` not set
+- Artifacts/notes cleaned BEFORE tests (clean starting state)
+- **In CI (CI=true):** Notebook deleted after tests to avoid orphans
+- **Locally:** Notebook persists, ID stored in `NOTEBOOKLM_HOME/generation_notebook_id`
 
 ## Test Markers
 
@@ -213,17 +217,17 @@ pytest tests/e2e --include-variants # Includes variants
 
 ```python
 # Runs by default - tests that generation works
-async def test_generate_audio_default(self, client, generation_notebook):
-    result = await client.artifacts.generate_audio(generation_notebook.id)
+async def test_generate_audio_default(self, client, generation_notebook_id):
+    result = await client.artifacts.generate_audio(generation_notebook_id)
     assert result.task_id, "Expected non-empty task_id"
     assert result.status in ("pending", "in_progress")
     assert result.error is None
 
 # Skipped by default - tests parameter encoding
 @pytest.mark.variants
-async def test_generate_audio_brief(self, client, generation_notebook):
+async def test_generate_audio_brief(self, client, generation_notebook_id):
     result = await client.artifacts.generate_audio(
-        generation_notebook.id,
+        generation_notebook_id,
         audio_format=AudioFormat.BRIEF,
     )
     assert result.task_id, "Expected non-empty task_id"
@@ -253,16 +257,16 @@ async def client(auth_tokens) -> NotebookLMClient:
 
 ```python
 @pytest.fixture
-def test_notebook_id() -> str:
-    """Returns NOTEBOOKLM_TEST_NOTEBOOK_ID (required)"""
+def read_only_notebook_id() -> str:
+    """Returns NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID (required)"""
 
 @pytest.fixture
 async def temp_notebook(client) -> Notebook:
     """Create notebook with content, auto-delete after test"""
 
 @pytest.fixture
-async def generation_notebook(client) -> Notebook:
-    """Notebook with content for generation tests, auto-delete after test"""
+async def generation_notebook_id(client) -> str:
+    """Auto-created notebook for generation tests (deleted in CI)"""
 ```
 
 ### Decorators
@@ -286,8 +290,11 @@ assert_generation_started(result, "Audio")  # Skips if rate limited
 Set via `.env` file (recommended) or shell export:
 
 ```bash
-# Required: Your test notebook with sources and artifacts
-NOTEBOOKLM_TEST_NOTEBOOK_ID=your-notebook-id-here
+# Required: Your read-only test notebook with sources and artifacts
+NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID=your-notebook-id-here
+
+# Optional: Explicit generation notebook ID (auto-created if not set)
+# NOTEBOOKLM_GENERATION_NOTEBOOK_ID=your-generation-notebook-id
 ```
 
 See `.env.example` for the template.
@@ -302,9 +309,9 @@ Need network?
 ├── Mocked → tests/integration/
 └── Real API → tests/e2e/
     └── What notebook?
-        ├── Read-only → test_notebook_id + @pytest.mark.readonly
+        ├── Read-only → read_only_notebook_id + @pytest.mark.readonly
         ├── CRUD → temp_notebook
-        └── Generation → generation_notebook
+        └── Generation → generation_notebook_id
             └── Parameter variant? → add @pytest.mark.variants
 ```
 
@@ -318,22 +325,22 @@ from .conftest import requires_auth, assert_generation_started
 @requires_auth
 class TestNewArtifact:
     @pytest.mark.asyncio
-    async def test_generate_new_artifact_default(self, client, generation_notebook):
-        result = await client.artifacts.generate_new(generation_notebook.id)
+    async def test_generate_new_artifact_default(self, client, generation_notebook_id):
+        result = await client.artifacts.generate_new(generation_notebook_id)
         # Use helper - skips test if rate limited, fails on other errors
         assert_generation_started(result, "NewArtifact")
 
     @pytest.mark.asyncio
     @pytest.mark.variants
-    async def test_generate_new_artifact_with_options(self, client, generation_notebook):
+    async def test_generate_new_artifact_with_options(self, client, generation_notebook_id):
         result = await client.artifacts.generate_new(
-            generation_notebook.id,
+            generation_notebook_id,
             option=SomeOption.VALUE,
         )
         assert_generation_started(result, "NewArtifact")
 ```
 
-Note: Generation tests only need `client` and `generation_notebook`. Cleanup is automatic.
+Note: Generation tests only need `client` and `generation_notebook_id`. Cleanup is automatic.
 
 ### Rate Limiting
 
@@ -392,25 +399,21 @@ study_guide                 → 1 study_guide call
 
 This spread is optimal for per-type rate limits.
 
-### Why Not Session-Scoped Fixtures?
+### Generation Notebook Design
 
-We evaluated making `generation_notebook` session-scoped (one notebook shared across all generation tests) to reduce API calls.
+The `generation_notebook_id` fixture uses a hybrid approach to balance:
+- **Local development**: Notebook persists for post-test verification
+- **CI environments**: Auto-cleanup to avoid orphaned notebooks
 
-**Analysis:**
+**How it works:**
 
-| Factor | Assessment |
-|--------|------------|
-| API calls saved | ~18 (10 notebooks + 10 sources) |
-| Time saved | ~20-40 seconds (default run) |
-| Rate limit help | **None** - doesn't reduce generation calls |
-| Complexity added | Event loop management, cleanup handling |
-| Risk added | Test isolation, debugging difficulty |
+| Environment | Behavior |
+|-------------|----------|
+| `NOTEBOOKLM_GENERATION_NOTEBOOK_ID` set | Uses provided ID, never deleted |
+| Local (no `CI` env var) | Auto-creates once, stores ID, persists across runs |
+| CI (`CI=true`) | Auto-creates, deletes after tests complete |
 
-**Decision:** Deferred. The savings don't justify the complexity because:
-1. Notebook/source creation is not rate limited
-2. The rate-limited operations (generation) can't be reduced without losing coverage
-3. pytest-asyncio session-scoped async fixtures require careful event loop management
-4. Current function-scoped fixtures provide better test isolation
+Artifacts and notes are always cleaned BEFORE tests to ensure a clean starting state.
 
 ### Future Considerations
 
@@ -462,15 +465,19 @@ notebooklm login
 cat ~/.notebooklm/storage_state.json
 ```
 
-#### Step 2: Add the Secret to GitHub
+#### Step 2: Add the Secrets to GitHub
 
 1. Go to your repository on GitHub
 2. Click **Settings** → **Secrets and variables** → **Actions**
-3. Click **New repository secret**
-4. Fill in:
+3. Add **two** repository secrets:
+
+   **Secret 1: Storage State**
    - **Name:** `NOTEBOOKLM_STORAGE_STATE`
    - **Value:** Paste the entire JSON content from step 1
-5. Click **Add secret**
+
+   **Secret 2: Read-Only Notebook ID**
+   - **Name:** `NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID`
+   - **Value:** Your test notebook ID (from URL: `notebooklm.google.com/notebook/YOUR_ID`)
 
 #### Step 3: Test the Workflow
 
@@ -507,9 +514,9 @@ Run `notebooklm login` and complete browser authentication.
 
 ### Tests fail with permission errors
 
-Your `NOTEBOOKLM_TEST_NOTEBOOK_ID` may be invalid or you don't own it. Verify:
+Your `NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID` may be invalid or you don't own it. Verify:
 ```bash
-echo $NOTEBOOKLM_TEST_NOTEBOOK_ID
+echo $NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID
 notebooklm list  # Should show your notebooks
 ```
 
@@ -539,10 +546,13 @@ Your session expired. Re-authenticate:
 notebooklm login
 ```
 
-### "NOTEBOOKLM_TEST_NOTEBOOK_ID not set" error
+### "NOTEBOOKLM_READ_ONLY_NOTEBOOK_ID not set" error
 
 This is expected - E2E tests require your own notebook. Follow Prerequisites step 3 to create one.
 
 ### Too many artifacts accumulating
 
-Generation tests create artifacts in `generation_notebook` (deleted at session end) and `temp_notebook` (deleted per test). If you interrupt tests, orphaned notebooks may remain. Clean up manually in the NotebookLM UI.
+- `temp_notebook`: Automatically deleted after each test
+- `generation_notebook_id` in CI: Notebook deleted after tests
+- `generation_notebook_id` locally: Artifacts cleaned before each run, notebook persists (ID stored in `NOTEBOOKLM_HOME/generation_notebook_id`)
+- If tests are interrupted, orphaned notebooks may remain - clean up manually in the NotebookLM UI

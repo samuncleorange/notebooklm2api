@@ -12,11 +12,11 @@ class TestNotebookOperations:
         assert all(isinstance(nb, Notebook) for nb in notebooks)
 
     @pytest.mark.asyncio
-    async def test_get_notebook(self, client, test_notebook_id):
-        notebook = await client.notebooks.get(test_notebook_id)
+    async def test_get_notebook(self, client, read_only_notebook_id):
+        notebook = await client.notebooks.get(read_only_notebook_id)
         assert notebook is not None
         assert isinstance(notebook, Notebook)
-        assert notebook.id == test_notebook_id
+        assert notebook.id == read_only_notebook_id
 
     @pytest.mark.asyncio
     async def test_create_rename_delete_notebook(
@@ -37,16 +37,16 @@ class TestNotebookOperations:
         created_notebooks.remove(notebook.id)
 
     @pytest.mark.asyncio
-    async def test_get_conversation_history(self, client, test_notebook_id):
-        history = await client.chat.get_history(test_notebook_id)
+    async def test_get_conversation_history(self, client, read_only_notebook_id):
+        history = await client.chat.get_history(read_only_notebook_id)
         assert history is not None
 
 
 @requires_auth
 class TestNotebookAsk:
     @pytest.mark.asyncio
-    async def test_ask_notebook(self, client, test_notebook_id):
-        result = await client.chat.ask(test_notebook_id, "What is this notebook about?")
+    async def test_ask_notebook(self, client, read_only_notebook_id):
+        result = await client.chat.ask(read_only_notebook_id, "What is this notebook about?")
         assert result.answer is not None
         assert result.conversation_id is not None
 
@@ -54,8 +54,8 @@ class TestNotebookAsk:
 @requires_auth
 class TestNotebookDescription:
     @pytest.mark.asyncio
-    async def test_get_description(self, client, test_notebook_id):
-        description = await client.notebooks.get_description(test_notebook_id)
+    async def test_get_description(self, client, read_only_notebook_id):
+        description = await client.notebooks.get_description(read_only_notebook_id)
 
         assert isinstance(description, NotebookDescription)
         assert description.summary is not None
@@ -65,20 +65,20 @@ class TestNotebookDescription:
 @requires_auth
 class TestNotebookConfigure:
     @pytest.mark.asyncio
-    async def test_configure_learning_mode(self, client, test_notebook_id):
-        await client.chat.set_mode(test_notebook_id, ChatMode.LEARNING_GUIDE)
+    async def test_configure_learning_mode(self, client, read_only_notebook_id):
+        await client.chat.set_mode(read_only_notebook_id, ChatMode.LEARNING_GUIDE)
 
     @pytest.mark.asyncio
-    async def test_configure_custom_persona(self, client, test_notebook_id):
+    async def test_configure_custom_persona(self, client, read_only_notebook_id):
         await client.chat.configure(
-            test_notebook_id,
+            read_only_notebook_id,
             goal=ChatGoal.CUSTOM,
             custom_prompt="You are a helpful science tutor",
         )
 
     @pytest.mark.asyncio
-    async def test_reset_to_default(self, client, test_notebook_id):
-        await client.chat.set_mode(test_notebook_id, ChatMode.DEFAULT)
+    async def test_reset_to_default(self, client, read_only_notebook_id):
+        await client.chat.set_mode(read_only_notebook_id, ChatMode.DEFAULT)
 
 
 @requires_auth
@@ -87,17 +87,17 @@ class TestNotebookSummary:
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_get_summary(self, client, test_notebook_id):
+    async def test_get_summary(self, client, read_only_notebook_id):
         """Test getting notebook summary."""
-        summary = await client.notebooks.get_summary(test_notebook_id)
+        summary = await client.notebooks.get_summary(read_only_notebook_id)
         # Summary may be empty string if not generated yet
         assert isinstance(summary, str)
 
     @pytest.mark.asyncio
     @pytest.mark.readonly
-    async def test_get_raw(self, client, test_notebook_id):
+    async def test_get_raw(self, client, read_only_notebook_id):
         """Test getting raw notebook data."""
-        raw_data = await client.notebooks.get_raw(test_notebook_id)
+        raw_data = await client.notebooks.get_raw(read_only_notebook_id)
         assert raw_data is not None
         # Raw data is typically a list with notebook structure
         assert isinstance(raw_data, list)
