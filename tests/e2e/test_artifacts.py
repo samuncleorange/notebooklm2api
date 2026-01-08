@@ -9,7 +9,7 @@ Generation tests are in test_generation.py. This file contains:
 
 import asyncio
 import pytest
-from .conftest import requires_auth
+from .conftest import requires_auth, assert_generation_started
 from notebooklm import Artifact, ReportSuggestion
 
 
@@ -164,13 +164,7 @@ class TestArtifactPolling:
         rate limits more frequently.
         """
         result = await client.artifacts.generate_flashcards(generation_notebook.id)
-        assert result is not None
-
-        # Skip if rate limited
-        if result.is_rate_limited:
-            pytest.skip("Rate limited by API")
-
-        assert result.task_id, f"Flashcard generation should return a task_id: {result.error}"
+        assert_generation_started(result, "Flashcard")
 
         await asyncio.sleep(2)
         status = await client.artifacts.poll_status(generation_notebook.id, result.task_id)
@@ -186,10 +180,9 @@ class TestArtifactMutations:
     @pytest.mark.asyncio
     async def test_delete_artifact(self, client, temp_notebook):
         """Test deleting an artifact."""
-        # Create a quiz artifact to delete
-        result = await client.artifacts.generate_quiz(temp_notebook.id)
-        assert result is not None
-        assert result.task_id, "Quiz generation should return a task_id"
+        # Create a flashcard artifact to delete (more reliable than quiz)
+        result = await client.artifacts.generate_flashcards(temp_notebook.id)
+        assert_generation_started(result, "Flashcard")
         artifact_id = result.task_id
 
         # Wait briefly for creation
@@ -207,16 +200,15 @@ class TestArtifactMutations:
     @pytest.mark.asyncio
     async def test_rename_artifact(self, client, temp_notebook):
         """Test renaming an artifact."""
-        # Create a quiz artifact to rename
-        result = await client.artifacts.generate_quiz(temp_notebook.id)
-        assert result is not None
-        assert result.task_id, "Quiz generation should return a task_id"
+        # Create a flashcard artifact to rename (more reliable than quiz)
+        result = await client.artifacts.generate_flashcards(temp_notebook.id)
+        assert_generation_started(result, "Flashcard")
         artifact_id = result.task_id
 
         # Wait for creation
         await asyncio.sleep(3)
 
-        new_title = "Renamed Quiz E2E"
+        new_title = "Renamed Flashcard E2E"
 
         # Rename it
         await client.artifacts.rename(temp_notebook.id, artifact_id, new_title)
@@ -243,13 +235,7 @@ class TestArtifactMutations:
         frequently hit rate limits.
         """
         result = await client.artifacts.generate_flashcards(temp_notebook.id)
-        assert result is not None
-
-        # Skip if rate limited
-        if result.is_rate_limited:
-            pytest.skip("Rate limited by API")
-
-        assert result.task_id, f"Generation should return a task_id: {result.error}"
+        assert_generation_started(result, "Flashcard")
 
         # Wait for completion
         final_status = await client.artifacts.wait_for_completion(

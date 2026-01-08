@@ -8,6 +8,7 @@ import asyncio
 import pytest
 import httpx
 
+from .conftest import assert_generation_started
 from notebooklm.auth import (
     AuthTokens,
     extract_csrf_from_html,
@@ -153,6 +154,4 @@ class TestArtifactGeneration:
             status = await client.artifacts.generate_audio(
                 notebook.id, instructions="Keep it brief and casual"
             )
-
-            assert status.task_id, "task_id should not be empty"
-            assert status.status in ("pending", "in_progress")
+            assert_generation_started(status, "Audio")

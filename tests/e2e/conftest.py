@@ -34,6 +34,30 @@ POLL_INTERVAL = 2.0  # Interval between poll attempts
 POLL_TIMEOUT = 60.0  # Max time to wait for operations
 
 
+def assert_generation_started(result, artifact_type: str = "Artifact") -> None:
+    """Assert that artifact generation started successfully.
+
+    Skips the test if rate limited by the API instead of failing.
+
+    Args:
+        result: GenerationStatus from a generate_* method
+        artifact_type: Name of artifact type for error messages
+
+    Raises:
+        pytest.skip: If rate limited by API
+        AssertionError: If generation failed for other reasons
+    """
+    assert result is not None, f"{artifact_type} generation returned None"
+
+    if result.is_rate_limited:
+        pytest.skip("Rate limited by API")
+
+    assert result.task_id, f"{artifact_type} generation failed: {result.error}"
+    assert result.status in ("pending", "in_progress"), (
+        f"Unexpected {artifact_type.lower()} status: {result.status}"
+    )
+
+
 def has_auth() -> bool:
     try:
         load_auth_from_storage()

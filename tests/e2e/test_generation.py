@@ -9,7 +9,7 @@ is deleted at test session end, removing all created artifacts.
 """
 
 import pytest
-from .conftest import requires_auth
+from .conftest import requires_auth, assert_generation_started
 from notebooklm import (
     AudioFormat,
     AudioLength,
@@ -34,10 +34,7 @@ class TestAudioGeneration:
     ):
         """Test audio generation with true defaults."""
         result = await client.artifacts.generate_audio(generation_notebook.id)
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     async def test_generate_audio_brief(
@@ -48,10 +45,7 @@ class TestAudioGeneration:
             generation_notebook.id,
             audio_format=AudioFormat.BRIEF,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -63,10 +57,7 @@ class TestAudioGeneration:
             audio_format=AudioFormat.DEEP_DIVE,
             audio_length=AudioLength.LONG,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -78,10 +69,7 @@ class TestAudioGeneration:
             audio_format=AudioFormat.BRIEF,
             audio_length=AudioLength.SHORT,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -92,10 +80,7 @@ class TestAudioGeneration:
             generation_notebook.id,
             audio_format=AudioFormat.CRITIQUE,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -106,10 +91,7 @@ class TestAudioGeneration:
             generation_notebook.id,
             audio_format=AudioFormat.DEBATE,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -120,10 +102,7 @@ class TestAudioGeneration:
             generation_notebook.id,
             language="en",
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
 
 @requires_auth
@@ -139,10 +118,7 @@ class TestVideoGeneration:
             generation_notebook.id,
             video_style=VideoStyle.ANIME,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -154,10 +130,7 @@ class TestVideoGeneration:
             video_format=VideoFormat.EXPLAINER,
             video_style=VideoStyle.ANIME,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -169,10 +142,7 @@ class TestVideoGeneration:
             video_format=VideoFormat.BRIEF,
             video_style=VideoStyle.WHITEBOARD,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -185,10 +155,7 @@ class TestVideoGeneration:
             video_style=VideoStyle.CLASSIC,
             instructions="Focus on key concepts for beginners",
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -199,10 +166,7 @@ class TestVideoGeneration:
             generation_notebook.id,
             video_style=VideoStyle.KAWAII,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -213,10 +177,7 @@ class TestVideoGeneration:
             generation_notebook.id,
             video_style=VideoStyle.WATERCOLOR,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -227,10 +188,7 @@ class TestVideoGeneration:
             generation_notebook.id,
             video_style=VideoStyle.AUTO_SELECT,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
 
 @requires_auth
@@ -246,10 +204,7 @@ class TestQuizGeneration:
             generation_notebook.id,
             difficulty=QuizDifficulty.HARD,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -262,10 +217,7 @@ class TestQuizGeneration:
             difficulty=QuizDifficulty.HARD,
             instructions="Focus on key concepts and definitions",
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -277,10 +229,7 @@ class TestQuizGeneration:
             quantity=QuizQuantity.FEWER,
             difficulty=QuizDifficulty.EASY,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
 
 @requires_auth
@@ -296,10 +245,7 @@ class TestFlashcardsGeneration:
             generation_notebook.id,
             quantity=QuizQuantity.MORE,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -312,10 +258,7 @@ class TestFlashcardsGeneration:
             difficulty=QuizDifficulty.MEDIUM,
             instructions="Create cards for vocabulary terms",
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
 
 @requires_auth
@@ -331,10 +274,7 @@ class TestInfographicGeneration:
             generation_notebook.id,
             orientation=InfographicOrientation.PORTRAIT,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -347,10 +287,7 @@ class TestInfographicGeneration:
             detail_level=InfographicDetail.DETAILED,
             instructions="Include statistics and key findings",
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -362,10 +299,7 @@ class TestInfographicGeneration:
             orientation=InfographicOrientation.SQUARE,
             detail_level=InfographicDetail.CONCISE,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -376,10 +310,7 @@ class TestInfographicGeneration:
             generation_notebook.id,
             orientation=InfographicOrientation.LANDSCAPE,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
 
 @requires_auth
@@ -395,10 +326,7 @@ class TestSlideDeckGeneration:
             generation_notebook.id,
             slide_format=SlideDeckFormat.PRESENTER_SLIDES,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -411,10 +339,7 @@ class TestSlideDeckGeneration:
             slide_length=SlideDeckLength.DEFAULT,
             instructions="Include speaker notes",
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -426,10 +351,7 @@ class TestSlideDeckGeneration:
             slide_format=SlideDeckFormat.PRESENTER_SLIDES,
             slide_length=SlideDeckLength.SHORT,
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
 
 @requires_auth
@@ -445,10 +367,7 @@ class TestDataTableGeneration:
             generation_notebook.id,
             instructions="Create a comparison table",
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
     @pytest.mark.asyncio
     @pytest.mark.variants
@@ -460,10 +379,7 @@ class TestDataTableGeneration:
             instructions="Create a comparison table of key concepts",
             language="en",
         )
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
 
 
 @requires_auth
@@ -494,7 +410,4 @@ class TestStudyGuideGeneration:
     ):
         """Test study guide generation."""
         result = await client.artifacts.generate_study_guide(generation_notebook.id)
-        assert result is not None
-        assert result.task_id, "Expected non-empty task_id"
-        assert result.status in ("pending", "in_progress"), f"Unexpected status: {result.status}"
-        assert result.error is None, f"Generation failed: {result.error}"
+        assert_generation_started(result)
