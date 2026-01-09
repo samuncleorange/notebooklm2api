@@ -128,6 +128,16 @@ if [ "$WITH_READONLY" = true ]; then
     echo "Auth storage mounted for readonly e2e tests"
 fi
 
+# Detect timeout command (GNU coreutils on Linux, gtimeout on macOS)
+if command -v timeout >/dev/null 2>&1; then
+    TIMEOUT_CMD="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+    TIMEOUT_CMD="gtimeout"
+else
+    TIMEOUT_CMD=""
+    echo -e "${YELLOW}Warning: timeout command not found, tests may hang${NC}"
+fi
+
 # Pre-pull images
 echo "Checking images..."
 for v in $VERSIONS; do
@@ -145,7 +155,7 @@ echo ""
 for v in $VERSIONS; do
     echo -e "${YELLOW}Starting Python $v...${NC}"
     (
-        timeout 600 docker run --rm \
+        ${TIMEOUT_CMD:+$TIMEOUT_CMD 600} docker run --rm \
             --name "$CONTAINER_PREFIX-$v" \
             "${VOLUME_ARGS[@]}" \
             -v "notebooklm-pip-cache-$v:/root/.cache/pip" \
