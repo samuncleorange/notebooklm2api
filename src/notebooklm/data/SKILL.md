@@ -376,8 +376,8 @@ All commands use consistent exit codes:
 | Source processing | 30s - 10 min | 600s |
 | Research (fast) | 30s - 2 min | 180s |
 | Research (deep) | 15 - 30+ min | 1800s |
-| Notes | 30s - 2 min | 180s |
-| Mind-map | 1 - 5 min | 300s |
+| Notes | instant | 30s |
+| Mind-map | 15s - 1 min | 60s |
 | Quiz, flashcards | 5 - 15 min | 900s |
 | Report, data-table | 5 - 15 min | 900s |
 | Audio generation | 10 - 20 min | 1200s |
