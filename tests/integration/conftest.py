@@ -16,10 +16,11 @@ from notebooklm.rpc import RPCMethod
 CASSETTES_DIR = Path(__file__).parent.parent / "cassettes"
 
 # Check if cassettes are available (more than just example files)
-_real_cassettes = [
-    f for f in CASSETTES_DIR.glob("*.yaml")
-    if not f.name.startswith("example_")
-] if CASSETTES_DIR.exists() else []
+_real_cassettes = (
+    [f for f in CASSETTES_DIR.glob("*.yaml") if not f.name.startswith("example_")]
+    if CASSETTES_DIR.exists()
+    else []
+)
 
 # Skip VCR tests if no real cassettes exist (unless in record mode)
 _vcr_record_mode = os.environ.get("NOTEBOOKLM_VCR_RECORD", "").lower() in ("1", "true", "yes")

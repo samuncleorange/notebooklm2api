@@ -143,9 +143,7 @@ class TestSourcesAPI:
             # First get a source to test with
             sources = await client.sources.list(READONLY_NOTEBOOK_ID)
             if sources:
-                guide = await client.sources.get_guide(
-                    READONLY_NOTEBOOK_ID, sources[0].id
-                )
+                guide = await client.sources.get_guide(READONLY_NOTEBOOK_ID, sources[0].id)
                 assert guide is not None
 
     @pytest.mark.vcr
