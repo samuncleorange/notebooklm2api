@@ -1,0 +1,97 @@
+feat: add OpenAI-compatible API server with Docker support
+
+## 主要功能
+
+### 1. OpenAI 兼容 API 服务器
+- 实现完整的 OpenAI Chat Completion API
+- 支持流式和非流式响应
+- 支持多 Notebook 切换
+- 可选的 API Key 认证保护
+
+### 2. Docker 容器化部署
+- 多阶段构建优化镜像大小
+- 包含 Playwright Chromium 支持
+- 健康检查和自动重启配置
+- Docker Compose 支持
+
+### 3. GitHub Actions 自动构建
+- 自动构建并推送到 GitHub Container Registry
+- 支持多架构 (amd64/arm64)
+- 版本标签和分支标签支持
+- 构建缓存优化
+
+### 4. VPS 无浏览器认证方案
+- 本地认证导出工具 (extract_auth.sh)
+- 环境变量方式传递认证信息
+- 支持文件挂载方式
+- 详细的部署文档
+
+### 5. 完善的文档和工具
+- 中文主文档 (README_CN.md)
+- VPS 部署指南 (VPS_DEPLOYMENT.md)
+- 快速参考 (QUICKSTART.md)
+- API 测试脚本 (test_api.py)
+
+## 新增文件
+
+- api_server.py - FastAPI 服务器实现
+- Dockerfile - Docker 镜像定义
+- docker-compose.yml - Docker Compose 配置
+- .dockerignore - 构建优化
+- .github/workflows/docker-build.yml - CI/CD 工作流
+- scripts/extract_auth.sh - 认证提取工具
+- test_api.py - API 测试工具
+- README_CN.md - 中文文档
+- VPS_DEPLOYMENT.md - 部署指南
+- QUICKSTART.md - 快速参考
+- SUMMARY.md - 修改总结
+
+## 修改文件
+
+- pyproject.toml - 添加 FastAPI 和 uvicorn 依赖
+
+## 使用示例
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="your-api-key",
+    base_url="http://your-vps:8000/v1"
+)
+
+response = client.chat.completions.create(
+    model="notebooklm",
+    messages=[{"role": "user", "content": "What are the key themes?"}]
+)
+
+print(response.choices[0].message.content)
+```
+
+## 部署命令
+
+```bash
+docker pull ghcr.io/samuncleorange/notebooklm2api:latest
+
+docker run -d \
+  --name notebooklm-api \
+  -p 8000:8000 \
+  -e NOTEBOOKLM_AUTH_JSON='{"cookies":[...]}' \
+  -e NOTEBOOKLM_NOTEBOOK_ID='your-notebook-id' \
+  -e API_KEY='your-secret-key' \
+  --restart unless-stopped \
+  ghcr.io/samuncleorange/notebooklm2api:latest
+```
+
+## 技术栈
+
+- FastAPI - Web 框架
+- uvicorn - ASGI 服务器
+- notebooklm-py - NotebookLM Python 库
+- Docker - 容器化
+- GitHub Actions - CI/CD
+
+## 致谢
+
+基于 notebooklm-py (https://github.com/teng-lin/notebooklm-py)
+感谢 Google Antigravity 团队
