@@ -10,13 +10,21 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy project files
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 COPY src ./src
 COPY README.md ./
+COPY LICENSE ./
+# Copy potential files needed for readme processing
+COPY CHANGELOG.md ./
+COPY docs ./docs
 
-# Install uv and dependencies
-RUN pip install --no-cache-dir uv && \
-    uv pip install --system --no-cache .
+
+# Install build tools
+RUN pip install --no-cache-dir build wheel
+
+# Build wheel
+# This avoids uv complexity and lock file issues
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels .
 
 # Runtime stage
 FROM python:3.11-slim
@@ -43,12 +51,16 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy wheels from builder
+COPY --from=builder /app/wheels /wheels
 
-# Copy application code
-COPY src ./src
+# Install dependencies from wheels and PyPI
+# We install notebooklm-py from the wheel we built
+# And explicit dependencies for the API server
+RUN pip install --no-cache-dir --find-links=/wheels notebooklm-py && \
+    pip install --no-cache-dir fastapi uvicorn
+
+# Copy API server code
 COPY api_server.py ./
 
 # Install Playwright browsers (chromium only for auth)
