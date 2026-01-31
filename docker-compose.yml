@@ -1,15 +1,21 @@
-version: '3.8'
-
 services:
   notebooklm-api:
-    image: ghcr.io/samuncleorange/notebooklm2api:latest
+    # 如果 GitHub Actions 构建完成，使用这个
+    # image: ghcr.io/samuncleorange/notebooklm2api:latest
+
+    # 如果本地构建，使用这个
+    build: .
+    image: notebooklm2api:local
+
     container_name: notebooklm-api
     ports:
       - "${PORT:-8000}:8000"
     environment:
-      - NOTEBOOKLM_AUTH_JSON=${NOTEBOOKLM_AUTH_JSON}
-      - NOTEBOOKLM_NOTEBOOK_ID=${NOTEBOOKLM_NOTEBOOK_ID}
-      - API_KEY=${API_KEY}
+      # 注意: 这里使用 ${VAR} 语法从 .env 文件读取
+      # Docker Compose 会自动处理变量替换
+      - NOTEBOOKLM_AUTH_JSON
+      - NOTEBOOKLM_NOTEBOOK_ID
+      - API_KEY
       - PORT=8000
       - HOST=0.0.0.0
     restart: unless-stopped
@@ -19,16 +25,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
-    # 可选: 资源限制
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '1.0'
-    #       memory: 512M
-    #     reservations:
-    #       cpus: '0.5'
-    #       memory: 256M
-
-    # 可选: 挂载认证文件而不是使用环境变量
-    # volumes:
-    #   - ~/.notebooklm:/root/.notebooklm:ro
