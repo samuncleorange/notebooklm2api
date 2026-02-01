@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 API_KEY = os.getenv("API_KEY", "")  # Empty string means no auth required
 DEFAULT_NOTEBOOK_ID = os.getenv("NOTEBOOKLM_NOTEBOOK_ID", "")
-CLEAN_MARKDOWN = os.getenv("CLEAN_MARKDOWN", "true").lower() in ("true", "1", "yes")  # Clean markdown by default
+CLEAN_MARKDOWN = os.getenv("CLEAN_MARKDOWN", "false").lower() in ("true", "1", "yes")  # Keep markdown by default
 PORT = int(os.getenv("PORT", "8000"))
 HOST = os.getenv("HOST", "0.0.0.0")
 
