@@ -158,6 +158,35 @@ def extract_user_query(messages: list[Message]) -> str:
     )
 
 
+def normalize_markdown(text: str) -> str:
+    """
+    Normalize markdown formatting to ensure proper rendering.
+    
+    Fixes common issues:
+    - Ensures headings have blank lines before and after
+    - Ensures list items have proper spacing
+    - Fixes missing line breaks around code blocks
+    """
+    import re
+    
+    # Ensure headings (###, ##, #) have blank lines before and after
+    text = re.sub(r'([^\n])\n(#{1,6}\s+)', r'\1\n\n\2', text)
+    text = re.sub(r'(#{1,6}\s+[^\n]+)\n([^\n#])', r'\1\n\n\2', text)
+    
+    # Ensure list items have proper spacing
+    text = re.sub(r'([^\n])\n([\*\-\+]\s+)', r'\1\n\n\2', text)
+    
+    # Ensure code blocks have blank lines around them
+    text = re.sub(r'([^\n])\n(```)', r'\1\n\n\2', text)
+    text = re.sub(r'(```)\n([^\n])', r'\1\n\n\2', text)
+    
+    # Clean up excessive blank lines (more than 2)
+    text = re.sub(r'\n{4,}', '\n\n\n', text)
+    
+    return text.strip()
+
+
+
 def clean_markdown_text(text: str) -> str:
     """
     Clean markdown formatting from NotebookLM responses.
@@ -286,8 +315,11 @@ async def non_stream_chat_completion(
             # Ask NotebookLM
             result = await client.chat.ask(notebook_id, query)
             
-            # Clean markdown formatting from response if enabled
-            answer = clean_markdown_text(result.answer) if CLEAN_MARKDOWN else result.answer
+            # Process response based on CLEAN_MARKDOWN setting
+            if CLEAN_MARKDOWN:
+                answer = clean_markdown_text(result.answer)
+            else:
+                answer = normalize_markdown(result.answer)
             
             # Create OpenAI-compatible response
             response = ChatCompletionResponse(
@@ -339,8 +371,11 @@ async def stream_chat_completion(
             # Ask NotebookLM (non-streaming, but we'll simulate streaming)
             result = await client.chat.ask(notebook_id, query)
             
-            # Clean markdown formatting from response if enabled
-            answer = clean_markdown_text(result.answer) if CLEAN_MARKDOWN else result.answer
+            # Process response based on CLEAN_MARKDOWN setting
+            if CLEAN_MARKDOWN:
+                answer = clean_markdown_text(result.answer)
+            else:
+                answer = normalize_markdown(result.answer)
             
             # Split response into chunks for streaming
             words = answer.split()
