@@ -55,9 +55,8 @@ WORKDIR /app
 COPY --from=builder /app/wheels /wheels
 
 # Install dependencies from wheels and PyPI
-# We install notebooklm-py from the wheel we built
-# And explicit dependencies for the API server
-RUN pip install --no-cache-dir --find-links=/wheels notebooklm-py && \
+# Install notebooklm-py with browser support (includes playwright)
+RUN pip install --no-cache-dir --find-links=/wheels 'notebooklm-py[browser]' && \
     pip install --no-cache-dir fastapi uvicorn
 
 # Copy API server code
