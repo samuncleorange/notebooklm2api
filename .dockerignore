@@ -48,10 +48,13 @@ htmlcov/
 .tox/
 .nox/
 
-# Documentation
-docs/
+# Documentation (exclude most but keep what's needed for build)
 *.md
+docs/
 !README.md
+!CHANGELOG.md
+!LICENSE
+!docs/
 
 # CI/CD
 .pre-commit-config.yaml
