@@ -51,6 +51,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 API_KEY = os.getenv("API_KEY", "")  # Empty string means no auth required
 DEFAULT_NOTEBOOK_ID = os.getenv("NOTEBOOKLM_NOTEBOOK_ID", "")
+CLEAN_MARKDOWN = os.getenv("CLEAN_MARKDOWN", "true").lower() in ("true", "1", "yes")  # Clean markdown by default
 PORT = int(os.getenv("PORT", "8000"))
 HOST = os.getenv("HOST", "0.0.0.0")
 
@@ -157,6 +158,53 @@ def extract_user_query(messages: list[Message]) -> str:
     )
 
 
+def clean_markdown_text(text: str) -> str:
+    """
+    Clean markdown formatting from NotebookLM responses.
+    
+    Converts markdown to plain text by:
+    - Removing heading markers (###, ##, #)
+    - Converting bold/italic markers to plain text
+    - Cleaning up list markers
+    - Preserving line breaks and structure
+    """
+    import re
+    
+    # Remove heading markers (### -> nothing, but keep the text)
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    
+    # Convert bold (**text** or __text__) to plain text
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'__(.+?)__', r'\1', text)
+    
+    # Convert italic (*text* or _text_) to plain text
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    text = re.sub(r'_(.+?)_', r'\1', text)
+    
+    # Clean up list markers (*, -, +, numbers)
+    text = re.sub(r'^\s*[\*\-\+]\s+', '• ', text, flags=re.MULTILINE)
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    
+    # Clean up code blocks (```language ... ```)
+    text = re.sub(r'```[\w]*\n', '', text)
+    text = re.sub(r'```', '', text)
+    
+    # Clean up inline code (`code`)
+    text = re.sub(r'`(.+?)`', r'\1', text)
+    
+    # Clean up links [text](url) -> text
+    text = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', text)
+    
+    # Remove extra blank lines (more than 2 consecutive newlines)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Clean up any remaining markdown artifacts
+    text = text.strip()
+    
+    return text
+
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -238,6 +286,9 @@ async def non_stream_chat_completion(
             # Ask NotebookLM
             result = await client.chat.ask(notebook_id, query)
             
+            # Clean markdown formatting from response if enabled
+            answer = clean_markdown_text(result.answer) if CLEAN_MARKDOWN else result.answer
+            
             # Create OpenAI-compatible response
             response = ChatCompletionResponse(
                 id=f"chatcmpl-{uuid.uuid4().hex[:8]}",
@@ -246,14 +297,14 @@ async def non_stream_chat_completion(
                 choices=[
                     ChatCompletionChoice(
                         index=0,
-                        message=Message(role="assistant", content=result.answer),
+                        message=Message(role="assistant", content=answer),
                         finish_reason="stop"
                     )
                 ],
                 usage=Usage(
                     prompt_tokens=len(query.split()),  # Rough estimate
-                    completion_tokens=len(result.answer.split()),  # Rough estimate
-                    total_tokens=len(query.split()) + len(result.answer.split())
+                    completion_tokens=len(answer.split()),  # Rough estimate
+                    total_tokens=len(query.split()) + len(answer.split())
                 )
             )
             
@@ -288,8 +339,11 @@ async def stream_chat_completion(
             # Ask NotebookLM (non-streaming, but we'll simulate streaming)
             result = await client.chat.ask(notebook_id, query)
             
+            # Clean markdown formatting from response if enabled
+            answer = clean_markdown_text(result.answer) if CLEAN_MARKDOWN else result.answer
+            
             # Split response into chunks for streaming
-            words = result.answer.split()
+            words = answer.split()
             chunk_size = max(1, len(words) // 20)  # ~20 chunks
             
             for i in range(0, len(words), chunk_size):
